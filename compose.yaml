@@ -1,0 +1,14 @@
+services:
+  scenequeue:
+    image: ghcr.io/al4xdev/scenequeue:latest
+    container_name: scenequeue
+    restart: unless-stopped
+    ports:
+      - "8889:8889"
+    volumes:
+      - scenequeue-data:/app/.data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  scenequeue-data:

@@ -12,6 +12,9 @@ SceneQueue is a local-first storyboard and batch generation interface
 for ComfyUI. It keeps prompts as ordered frames, queues them through a configurable
 API workflow, tracks progress, and reflects generated images in a session gallery.
 
+[![CI](https://github.com/al4xdev/scenequeue/actions/workflows/test.yml/badge.svg)](https://github.com/al4xdev/scenequeue/actions/workflows/test.yml)
+[![Container](https://github.com/al4xdev/scenequeue/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/al4xdev/scenequeue/pkgs/container/scenequeue)
+
 The repository ships with general-purpose, safe-for-work examples and a workflow
 made only from standard ComfyUI nodes. Your prompts, generated images, selected
 models, and local workflow edits live under `.data/` and are never committed.
@@ -77,7 +80,7 @@ standard `LoraLoader` nodes at queue time.
 ## Quickstart
 
 ```bash
-git clone https://github.com/your-name/scenequeue.git
+git clone https://github.com/al4xdev/scenequeue.git
 cd scenequeue
 ./install.sh
 ./start.sh
@@ -94,10 +97,9 @@ Open <http://127.0.0.1:8889>, then use Settings to configure:
 - an optional high-resolution second pass;
 - the general-audience/adult-content switch.
 
-The **Fast Illustration** button applies the quality preset used during this
-project's original development: the selected checkpoint, the selected LoRA,
-12 base steps with `beta57`, and a four-step high-resolution refinement. Models
-are selected only when they are installed in the connected ComfyUI instance.
+The **Fast Illustration Sampling** button applies a model-independent starting
+point: 12 base steps with the `beta57` scheduler and a four-step high-resolution
+refinement. It preserves the checkpoint and LoRAs currently selected by the user.
 
 The first run copies source defaults into `.data/`. Editing prompt databases or
 workflows through the application never changes the files committed in `defaults/`.
@@ -114,15 +116,65 @@ and manga style. The sequence demonstrates:
 - reusable placeholders, so the same sequence can feature a person, robot, fox,
   or any subject added by the user.
 
-### Docker
+## Docker
+
+The latest multi-architecture image is published automatically to GitHub
+Container Registry for `linux/amd64` and `linux/arm64`.
+
+### Docker Compose
+
+```bash
+docker compose up -d
+```
+
+Open <http://localhost:8889>. In Settings, use
+`http://host.docker.internal:8188` as the ComfyUI URL when ComfyUI runs directly
+on the host. Change the port if your ComfyUI instance uses a different one.
+
+The named `scenequeue-data` volume preserves configuration, prompt databases,
+workflows, API credentials, and gallery state across container upgrades.
+
+To update:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### Docker CLI
+
+```bash
+docker pull ghcr.io/al4xdev/scenequeue:latest
+docker volume create scenequeue-data
+docker run -d \
+  --name scenequeue \
+  --restart unless-stopped \
+  -p 8889:8889 \
+  --add-host host.docker.internal:host-gateway \
+  -v scenequeue-data:/app/.data \
+  ghcr.io/al4xdev/scenequeue:latest
+```
+
+On Linux, host networking is also available:
+
+```bash
+docker run -d \
+  --name scenequeue \
+  --restart unless-stopped \
+  --network host \
+  -v scenequeue-data:/app/.data \
+  ghcr.io/al4xdev/scenequeue:latest
+```
+
+With host networking, use the normal loopback ComfyUI URL, such as
+`http://127.0.0.1:8188`.
+
+### Build locally
 
 ```bash
 docker build -t scenequeue .
 docker run --rm -p 8889:8889 -v scenequeue-data:/app/.data scenequeue
 ```
-
-When ComfyUI runs on the host, set its reachable URL in Settings. On Linux,
-host networking may be the simplest option for a local-only setup.
 
 ## Custom workflows
 
