@@ -1983,6 +1983,12 @@ async function openSettingsModal() {
     document.getElementById('cfgWidth').value = cfg.width || 768;
     document.getElementById('cfgHeight').value = cfg.height || 1024;
     document.getElementById('cfgComfyRoot').value = cfg.comfy_root || '';
+    document.getElementById('cfgOpenRouterKey').value = '';
+    document.getElementById('cfgOpenRouterClearKey').checked = false;
+    document.getElementById('cfgOpenRouterModels').value = (cfg.openrouter_models || []).join('\n');
+    const openRouterStatus = document.getElementById('cfgOpenRouterStatus');
+    openRouterStatus.textContent = cfg.openrouter_configured ? 'Configured' : 'Not configured';
+    openRouterStatus.style.color = cfg.openrouter_configured ? '#10b981' : '#6b7280';
     populateSelectOptions('cfgSamplerName', models.samplers, cfg.sampler_name || 'dpmpp_2m_sde_heun_gpu');
     populateSelectOptions('cfgScheduler', models.schedulers, cfg.scheduler || 'beta57');
     document.getElementById('cfgSteps').value = cfg.steps ?? 12;
@@ -2158,6 +2164,12 @@ async function saveSettings() {
     const highres_cfg_scale = Math.max(0, Number.parseFloat(document.getElementById('cfgHighresCfgScale').value) || 0);
     const highres_denoise = Math.min(1, Math.max(0, Number.parseFloat(document.getElementById('cfgHighresDenoise').value) || 0));
     const adult_content = document.getElementById('cfgAdultContent').checked;
+    const openrouter_api_key = document.getElementById('cfgOpenRouterKey').value.trim();
+    const openrouter_clear_key = document.getElementById('cfgOpenRouterClearKey').checked;
+    const openrouter_models = document.getElementById('cfgOpenRouterModels').value
+      .split(/\r?\n|,/)
+      .map(model => model.trim())
+      .filter(Boolean);
     if (!checkpoint) {
       alert('Select a checkpoint model before saving.');
       return;
@@ -2231,7 +2243,10 @@ async function saveSettings() {
         highres_steps,
         highres_cfg_scale,
         highres_denoise,
-        adult_content
+        adult_content,
+        openrouter_api_key: openrouter_api_key || null,
+        openrouter_clear_key,
+        openrouter_models
       })
     });
     if (res.ok) {

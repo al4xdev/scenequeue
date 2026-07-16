@@ -43,8 +43,11 @@ class TestAPI(unittest.TestCase):
         self.db_name_patcher.stop()
 
     @patch("routes.api.cfg.reload_config")
+    @patch("routes.api.cfg.save_openrouter_settings")
     @patch("routes.api.cfg.save_config")
-    def test_update_config_from_frontend(self, mock_save_config, mock_reload_config):
+    def test_update_config_from_frontend(
+        self, mock_save_config, mock_save_openrouter_settings, mock_reload_config
+    ):
         payload = {
             "comfy_url": "http://127.0.0.1:8188",
             "target_node_id": "2",
@@ -76,6 +79,39 @@ class TestAPI(unittest.TestCase):
                 "adult_content": False,
             }
         )
+        mock_reload_config.assert_called_once()
+        mock_save_openrouter_settings.assert_called_once_with(None, [], clear_key=False)
+
+    @patch("routes.api.cfg.reload_config")
+    @patch("routes.api.cfg.save_openrouter_settings")
+    @patch("routes.api.cfg.save_config")
+    def test_update_config_saves_openrouter_without_echoing_key(
+        self, mock_save_config, mock_save_openrouter_settings, mock_reload_config
+    ):
+        payload = {
+            "comfy_url": "http://127.0.0.1:8188",
+            "target_node_id": "2",
+            "target_input_key": "text",
+            "width": 768,
+            "height": 1024,
+            "comfy_root": "",
+            "checkpoint": "example.safetensors",
+            "loras": [],
+            "chunk_size": 1,
+            "openrouter_api_key": "sk-or-secret",
+            "openrouter_models": ["model/a", "model/b"],
+        }
+
+        response = self.client.post("/api/config", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("sk-or-secret", response.text)
+        mock_save_openrouter_settings.assert_called_once_with(
+            "sk-or-secret",
+            ["model/a", "model/b"],
+            clear_key=False,
+        )
+        mock_save_config.assert_called_once()
         mock_reload_config.assert_called_once()
 
     def test_update_config_rejects_invalid_generation_values(self):

@@ -270,7 +270,10 @@ def _save_and_reload(new_cfg: dict) -> None:
 
 @router.get("/api/config")
 async def get_config():
-    return cfg.load_config()
+    public_config = cfg.load_config()
+    public_config["openrouter_configured"] = bool(cfg.OPENROUTER_API_KEY)
+    public_config["openrouter_models"] = cfg.OPENROUTER_MODELS
+    return public_config
 
 
 class ConfigRequest(BaseModel):
@@ -294,6 +297,9 @@ class ConfigRequest(BaseModel):
     highres_cfg_scale: float = Field(default=1.6, ge=0, le=100)
     highres_denoise: float = Field(default=0.45, ge=0, le=1)
     adult_content: bool = False
+    openrouter_api_key: str | None = None
+    openrouter_clear_key: bool = False
+    openrouter_models: list[str] = Field(default_factory=list)
 
 
 @router.post("/api/config")
@@ -320,7 +326,16 @@ async def update_config(cfg_req: ConfigRequest):
         "highres_denoise": cfg_req.highres_denoise,
         "adult_content": cfg_req.adult_content,
     }
-    _save_and_reload(new_cfg)
+    try:
+        cfg.save_config(new_cfg)
+        cfg.save_openrouter_settings(
+            cfg_req.openrouter_api_key,
+            cfg_req.openrouter_models,
+            clear_key=cfg_req.openrouter_clear_key,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    cfg.reload_config()
     return {"status": "ok"}
 
 

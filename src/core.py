@@ -128,6 +128,21 @@ def _atomic_write_json(path: Path, value: Any) -> None:
         raise
 
 
+def _atomic_write_text(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(value)
+            f.flush()
+            os.fsync(f.fileno())
+        temporary.replace(path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
 def load_env_variables() -> dict[str, str]:
     vars_dict = {}
     # 1. Check local .env
@@ -140,6 +155,39 @@ def load_env_variables() -> dict[str, str]:
         if val:
             vars_dict[k] = val
     return vars_dict
+
+
+def save_openrouter_settings(
+    api_key: str | None,
+    models: list[str],
+    *,
+    clear_key: bool = False,
+) -> None:
+    local_env = DATA_DIR / ".env"
+    current = _parse_env_file(local_env) if local_env.exists() else {}
+
+    if clear_key:
+        current.pop("OPENROUTER_API_KEY", None)
+    elif api_key:
+        clean_key = api_key.strip()
+        if "\n" in clean_key or "\r" in clean_key:
+            raise ValueError("OpenRouter API key cannot contain line breaks.")
+        current["OPENROUTER_API_KEY"] = clean_key
+
+    clean_models = [model.strip() for model in models if model.strip()]
+    if clean_models:
+        if any("\n" in model or "\r" in model for model in clean_models):
+            raise ValueError("OpenRouter model names cannot contain line breaks.")
+        current["OPENROUTER_MODELS"] = ",".join(clean_models)
+    else:
+        current.pop("OPENROUTER_MODELS", None)
+
+    ordered_keys = ["OPENROUTER_API_KEY", "OPENROUTER_MODELS"]
+    content = "".join(f"{key}={current[key]}\n" for key in ordered_keys if current.get(key))
+    if content:
+        _atomic_write_text(local_env, content)
+    else:
+        local_env.unlink(missing_ok=True)
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:

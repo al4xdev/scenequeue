@@ -114,6 +114,8 @@ OPENROUTER_MODELS=deepseek/deepseek-chat,meta-llama/llama-3.3-70b-instruct
 
 The API key remains server-side and is never returned by the settings endpoint.
 Without it, every non-AI editing and generation feature remains available.
+You can also configure or remove the key in Settings → OpenRouter Assistant; the
+password field is write-only and displays only whether a key is configured.
 
 ## Data layout
 

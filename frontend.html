@@ -12,7 +12,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/styles.css">
-<script src="/static/js/app.js?v=5" defer></script>
+<script src="/static/js/app.js?v=6" defer></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -450,6 +450,20 @@
         <div>
           <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">ComfyUI Root Path</label>
           <input type="text" id="cfgComfyRoot" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+        </div>
+
+        <div style="border-top:1px solid #1f2937;padding-top:12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <label style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">OpenRouter Assistant</label>
+            <span id="cfgOpenRouterStatus" style="font-size:10px;color:#6b7280;">Not configured</span>
+          </div>
+          <input type="password" id="cfgOpenRouterKey" autocomplete="new-password" placeholder="Paste API key, or leave blank to keep current key" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+          <textarea id="cfgOpenRouterModels" rows="2" placeholder="One model per line" style="width:100%;resize:vertical;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;outline:none;"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;color:#9ca3af;font-size:11px;">
+            <input type="checkbox" id="cfgOpenRouterClearKey">
+            Remove the saved API key
+          </label>
+          <p style="font-size:10px;color:#6b7280;">The key is stored server-side in <code>.data/.env</code> and is never returned to the browser.</p>
         </div>
 
         <button id="btnOpenGenerationSettings" onclick="openGenerationSettings()"
