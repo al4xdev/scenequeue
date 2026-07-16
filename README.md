@@ -22,6 +22,11 @@ rather than becoming an opaque one-shot generation.
 [![CI](https://github.com/al4xdev/scenequeue/actions/workflows/test.yml/badge.svg)](https://github.com/al4xdev/scenequeue/actions/workflows/test.yml)
 [![Container](https://github.com/al4xdev/scenequeue/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/al4xdev/scenequeue/pkgs/container/scenequeue)
 
+> [!IMPORTANT]
+> **Project status:** SceneQueue is a portfolio and reference project. It is
+> provided as-is under the MIT license, without active maintenance or support.
+> Forks and independent adaptations are welcome.
+
 The repository ships with general-purpose, safe-for-work examples and a workflow
 made only from standard ComfyUI nodes. Your prompts, generated images, selected
 models, and local workflow edits live under `.data/` and are never committed.
@@ -133,6 +138,11 @@ and manga style. The sequence demonstrates:
 The latest multi-architecture image is published automatically to GitHub
 Container Registry for `linux/amd64` and `linux/arm64`.
 
+> [!WARNING]
+> SceneQueue has no authentication layer. The examples below publish port `8889`
+> to the local network so the mobile interface can reach it. Use only on a trusted
+> network, or replace `8889:8889` with `127.0.0.1:8889:8889` for host-only access.
+
 ### Docker Compose
 
 ```bash
@@ -238,6 +248,7 @@ trusted private network.
 ```bash
 uv sync --dev
 uv run ruff check .
+uv run mypy
 uv run pytest
 ```
 
