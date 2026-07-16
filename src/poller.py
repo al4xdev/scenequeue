@@ -29,7 +29,7 @@ async def _save_image_from_comfy(
     local_path = IMAGES_DIR / f"{target_id}.png"
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. Tentativa via Unix Hard Link (Espaço zero, instantâneo)
+    # 1. Try a Unix hard link first (zero additional space and effectively instant).
     if comfy_file.exists():
         try:
             local_path.unlink(missing_ok=True)

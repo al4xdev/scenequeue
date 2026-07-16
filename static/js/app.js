@@ -123,6 +123,33 @@ if (btnToggleDrawer) btnToggleDrawer.addEventListener('click', () => toggleDrawe
 // ── Data loading ─────────────────────────────────────────────────────────────
 let isLoadingSessions = false;
 let isLoadingItems = false;
+let sessionsRenderSignature = '';
+let galleryRenderSignature = '';
+
+function getSessionsSignature(items) {
+  return JSON.stringify(items.map(session => ({
+    session_id: session.session_id,
+    config: session.config,
+    total: session.total,
+    completed: session.completed,
+    pending: session.pending,
+    failed: session.failed,
+    preview_id: session.preview_id
+  })));
+}
+
+function getGallerySignature(items) {
+  return JSON.stringify(items.map(item => ({
+    id: item.id,
+    parent_id: item.parent_id,
+    segment_index: item.segment_index,
+    prompt_id: item.prompt_id,
+    status: item.status,
+    filename: item.filename,
+    progress: item.progress === undefined ? null : Math.round(item.progress * 1000),
+    upscaled: item.upscaled
+  })));
+}
 
 async function loadState() {
   if (currentView === 'sessions') {
@@ -137,7 +164,11 @@ async function loadSessions() {
   isLoadingSessions = true;
   try {
     const res = await fetch('/api/sessions');
-    sessions = await res.json();
+    const nextSessions = await res.json();
+    const nextSignature = getSessionsSignature(nextSessions);
+    sessions = nextSessions;
+    if (nextSignature === sessionsRenderSignature) return;
+    sessionsRenderSignature = nextSignature;
     renderSessions();
   } catch(e) {
     console.error('loadSessions error:', e);
@@ -158,7 +189,9 @@ async function loadSessionItems() {
     const isFirstLoad = (loadedSessionId !== currentSessionId);
 
     const res = await fetch(`/api/state?session_id=${encodeURIComponent(currentSessionId)}&limit=200`);
-    galleryItems = await res.json();
+    const nextGalleryItems = await res.json();
+    const nextSignature = getGallerySignature(nextGalleryItems);
+    galleryItems = nextGalleryItems;
 
     if (!isFirstLoad) {
       galleryItems.forEach(item => {
@@ -196,6 +229,8 @@ async function loadSessionItems() {
       currentSessionData.failed = failed;
     }
 
+    if (nextSignature === galleryRenderSignature) return;
+    galleryRenderSignature = nextSignature;
     renderGallery();
   } catch(e) {
     console.error('loadSessionItems error:', e);
@@ -327,6 +362,7 @@ async function openSession(sid) {
   currentView = 'sessionDetail';
   currentSessionId = sid;
   loadedSessionId = null;
+  galleryRenderSignature = '';
   currentSessionData = sessions.find(s => s.session_id === sid);
   await loadSessionItems();
 }
@@ -336,9 +372,11 @@ async function backToSessions() {
   currentSessionId = null;
   currentSessionData = null;
   galleryItems = [];
+  galleryRenderSignature = '';
   dealtCardIds.clear();
   isLoadingItems = false;
   disableSelectionMode();
+  sessionsRenderSignature = '';
   await loadSessions();
 }
 
@@ -1485,9 +1523,9 @@ async function submitEdit() {
   if (prompt === originalEditPromptText && !configChanged) {
     const diffSection = document.getElementById('aiDiffSection');
     const hasSuggestion = diffSection && diffSection.style.display === 'flex';
-    let msg = "O prompt e as configurações não foram alterados. Deseja realmente reenfileirar o mesmo prompt sem alterações?";
+    let msg = "The prompt and settings have not changed. Do you want to re-queue the same prompt without any changes?";
     if (hasSuggestion) {
-      msg = "Você possui uma sugestão da IA pendente na tela, mas o prompt principal não foi atualizado (talvez você tenha clicado em 'Re-queue' antes de clicar em 'Use Suggestion').\n\nDeseja realmente reenfileirar o prompt original sem alterações?";
+      msg = "An AI suggestion is still pending, but the main prompt has not been updated. You may have clicked 'Re-queue' before clicking 'Use Suggestion'.\n\nDo you want to re-queue the original prompt without any changes?";
     }
     const confirmSame = confirm(msg);
     if (!confirmSame) return;
@@ -1641,15 +1679,15 @@ function handleInsertBeforeAI(event) {
   const menu = document.getElementById('editActionsMenu');
   if (menu) menu.style.display = 'none';
 
-  const countStr = prompt("Quantos quadros novos deseja inserir com a IA?", "1");
+  const countStr = prompt("How many new frames should AI insert?", "1");
   if (countStr === null) return;
   const count = parseInt(countStr, 10);
   if (isNaN(count) || count < 1) {
-    alert("Quantidade inválida.");
+    alert("Enter a valid number of frames.");
     return;
   }
 
-  const instruction = prompt("Descreva o que acontece nessa nova sequência (deixe em branco para transição automática da IA):");
+  const instruction = prompt("Describe what happens in this new sequence (leave blank to let AI create the transition):");
   if (instruction === null) return; // User cancelled
   insertSegmentFromEdit('before', true, instruction, count);
 }
@@ -1659,15 +1697,15 @@ function handleInsertAfterAI(event) {
   const menu = document.getElementById('editActionsMenu');
   if (menu) menu.style.display = 'none';
 
-  const countStr = prompt("Quantos quadros novos deseja inserir com a IA?", "1");
+  const countStr = prompt("How many new frames should AI insert?", "1");
   if (countStr === null) return;
   const count = parseInt(countStr, 10);
   if (isNaN(count) || count < 1) {
-    alert("Quantidade inválida.");
+    alert("Enter a valid number of frames.");
     return;
   }
 
-  const instruction = prompt("Descreva o que acontece nessa nova sequência (deixe em branco para transição automática da IA):");
+  const instruction = prompt("Describe what happens in this new sequence (leave blank to let AI create the transition):");
   if (instruction === null) return; // User cancelled
   insertSegmentFromEdit('after', true, instruction, count);
 }
@@ -1678,10 +1716,10 @@ async function handleDeleteSegmentFromMenu(event) {
   if (menu) menu.style.display = 'none';
 
   // Double confirmation
-  const confirm1 = confirm("Tem certeza de que deseja apagar este segmento do banco de dados?\nEsta ação removerá o segmento e reordenará os índices subsequentes.");
+  const confirm1 = confirm("Delete this segment from the database?\nThis will remove the segment and reorder every segment that follows it.");
   if (!confirm1) return;
 
-  const confirm2 = confirm("CONFIRMAÇÃO ADICIONAL: Deseja realmente excluir este segmento? Isso apagará o prompt do banco de dados e os arquivos de imagem correspondentes.");
+  const confirm2 = confirm("Final confirmation: permanently delete this segment?\nThis will remove its prompt and associated image files.");
   if (!confirm2) return;
 
   await deleteSegmentFromEdit();
