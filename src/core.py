@@ -79,6 +79,17 @@ def _default_config() -> dict:
         "checkpoint": "",
         "loras": [],
         "chunk_size": 1,
+        "sampler_name": "dpmpp_2m_sde_heun_gpu",
+        "scheduler": "beta57",
+        "steps": 12,
+        "cfg_scale": 1.0,
+        "denoise": 1.0,
+        "highres_enabled": True,
+        "highres_scale": 1.5,
+        "highres_steps": 4,
+        "highres_cfg_scale": 1.6,
+        "highres_denoise": 0.45,
+        "adult_content": False,
     }
 
 
@@ -166,6 +177,17 @@ LORAS = []
 OPENROUTER_API_KEY = ""
 OPENROUTER_MODELS = _DEFAULT_OPENROUTER_MODELS
 CHUNK_SIZE = 1
+SAMPLER_NAME = "dpmpp_2m_sde_heun_gpu"
+SCHEDULER = "beta57"
+STEPS = 12
+CFG_SCALE = 1.0
+DENOISE = 1.0
+HIGHRES_ENABLED = True
+HIGHRES_SCALE = 1.5
+HIGHRES_STEPS = 4
+HIGHRES_CFG_SCALE = 1.6
+HIGHRES_DENOISE = 0.45
+ADULT_CONTENT = False
 
 
 def reload_config() -> None:
@@ -180,6 +202,9 @@ def reload_config() -> None:
         CHECKPOINT, \
         LORAS
     global OPENROUTER_API_KEY, OPENROUTER_MODELS, CHUNK_SIZE
+    global SAMPLER_NAME, SCHEDULER, STEPS, CFG_SCALE, DENOISE
+    global HIGHRES_ENABLED, HIGHRES_SCALE, HIGHRES_STEPS, HIGHRES_CFG_SCALE, HIGHRES_DENOISE
+    global ADULT_CONTENT
 
     _config = load_config()
     COMFY_URL = _config.get("comfy_url", "http://127.0.0.1:8188")
@@ -192,6 +217,17 @@ def reload_config() -> None:
     CHECKPOINT = _config.get("checkpoint", "")
     LORAS = _config.get("loras", [])
     CHUNK_SIZE = int(_config.get("chunk_size", 1))
+    SAMPLER_NAME = str(_config.get("sampler_name", "dpmpp_2m_sde_heun_gpu"))
+    SCHEDULER = str(_config.get("scheduler", "beta57"))
+    STEPS = int(_config.get("steps", 12))
+    CFG_SCALE = float(_config.get("cfg_scale", 1.0))
+    DENOISE = float(_config.get("denoise", 1.0))
+    HIGHRES_ENABLED = bool(_config.get("highres_enabled", True))
+    HIGHRES_SCALE = float(_config.get("highres_scale", 1.5))
+    HIGHRES_STEPS = int(_config.get("highres_steps", 4))
+    HIGHRES_CFG_SCALE = float(_config.get("highres_cfg_scale", 1.6))
+    HIGHRES_DENOISE = float(_config.get("highres_denoise", 0.45))
+    ADULT_CONTENT = bool(_config.get("adult_content", False))
 
     _env_vars = load_env_variables()
     OPENROUTER_API_KEY = _env_vars.get("OPENROUTER_API_KEY", "")

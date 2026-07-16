@@ -39,11 +39,38 @@
     "_meta": {"title": "Sampler"}
   },
   "6": {
-    "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+    "inputs": {"samples": ["8", 0], "vae": ["1", 2]},
     "class_type": "VAEDecode",
     "_meta": {"title": "Decode"}
   },
   "7": {
+    "inputs": {
+      "upscale_method": "bislerp",
+      "width": 1152,
+      "height": 1536,
+      "crop": "disabled",
+      "samples": ["5", 0]
+    },
+    "class_type": "LatentUpscale",
+    "_meta": {"title": "High-resolution latent upscale"}
+  },
+  "8": {
+    "inputs": {
+      "seed": 0,
+      "steps": 4,
+      "cfg": 1.6,
+      "sampler_name": "dpmpp_2m_sde_heun_gpu",
+      "scheduler": "beta57",
+      "denoise": 0.45,
+      "model": ["1", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["7", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "High-resolution sampler"}
+  },
+  "9": {
     "inputs": {"filename_prefix": "scenequeue", "images": ["6", 0]},
     "class_type": "SaveImage",
     "_meta": {"title": "Save image"}

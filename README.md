@@ -20,7 +20,9 @@ models, and local workflow edits live under `.data/` and are never committed.
 
 - Ordered prompt databases with insert, edit, history, and retry operations.
 - Reusable placeholders for subject, appearance, wardrobe, pose, scene, and style.
-- Batch generation with configurable resolution, checkpoint, LoRAs, and chunk size.
+- Sequential batch generation with configurable resolution, checkpoint, and LoRAs.
+- Advanced sampler, scheduler, denoise, CFG, and optional high-resolution pass controls.
+- Optional adult-content mode; general-audience negative tags are enabled by default.
 - ComfyUI queue monitoring over WebSocket with HTTP fallback.
 - Session gallery, thumbnails, failed-slot recovery, and optional upscaling.
 - Optional OpenRouter assistant for prompt editing and transition-frame generation.
@@ -34,7 +36,8 @@ models, and local workflow edits live under `.data/` and are never committed.
 
 The default generation workflow uses these standard nodes:
 `CheckpointLoaderSimple`, `CLIPTextEncode`, `EmptyLatentImage`, `KSampler`,
-`VAEDecode`, and `SaveImage`.
+`LatentUpscale`, `VAEDecode`, and `SaveImage`. Selected LoRAs are injected with
+standard `LoraLoader` nodes at queue time.
 
 ## Quickstart
 
@@ -51,7 +54,15 @@ Open <http://127.0.0.1:8889>, then use Settings to configure:
 - the local ComfyUI root directory;
 - a checkpoint;
 - the prompt node ID and input key if you replace the bundled workflow;
-- generation resolution, prompts per batch, and optional LoRAs.
+- generation resolution, checkpoint, and optional LoRAs.
+- sampler and scheduler parameters;
+- an optional high-resolution second pass;
+- the general-audience/adult-content switch.
+
+The **Fast Illustration** button applies the quality preset used during this
+project's original development: the selected checkpoint, the selected LoRA,
+12 base steps with `beta57`, and a four-step high-resolution refinement. Models
+are selected only when they are installed in the connected ComfyUI instance.
 
 The first run copies source defaults into `.data/`. Editing prompt databases or
 workflows through the application never changes the files committed in `defaults/`.

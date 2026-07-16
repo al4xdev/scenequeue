@@ -1887,6 +1887,54 @@ async function retryAllFailed(sessionId, event) {
 }
 
 // ── Settings Modal ───────────────────────────────────────────────────────────
+let generationCatalog = { checkpoints: [], loras: [], samplers: [], schedulers: [], recommended_preset: null };
+
+function populateSelectOptions(selectId, options, currentValue) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  select.innerHTML = '';
+  [...new Set(options || [])].forEach(value => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+  if (currentValue && ![...select.options].some(option => option.value === currentValue)) {
+    const option = document.createElement('option');
+    option.value = currentValue;
+    option.textContent = `${currentValue} (configured)`;
+    select.appendChild(option);
+  }
+  if (currentValue) select.value = currentValue;
+}
+
+function applyRecommendedGenerationPreset() {
+  const preset = generationCatalog.recommended_preset;
+  if (!preset) return;
+  if (!generationCatalog.checkpoints.includes(preset.checkpoint)) {
+    alert(`Recommended checkpoint is not installed: ${preset.checkpoint}`);
+    return;
+  }
+  populateSelectOptions('cfgSamplerName', generationCatalog.samplers, preset.sampler_name);
+  populateSelectOptions('cfgScheduler', generationCatalog.schedulers, preset.scheduler);
+  document.getElementById('cfgCheckpoint').value = preset.checkpoint;
+  document.getElementById('cfgSteps').value = preset.steps;
+  document.getElementById('cfgScale').value = preset.cfg_scale;
+  document.getElementById('cfgDenoise').value = preset.denoise;
+  document.getElementById('cfgHighresEnabled').checked = preset.highres_enabled;
+  document.getElementById('cfgHighresScale').value = preset.highres_scale;
+  document.getElementById('cfgHighresSteps').value = preset.highres_steps;
+  document.getElementById('cfgHighresCfgScale').value = preset.highres_cfg_scale;
+  document.getElementById('cfgHighresDenoise').value = preset.highres_denoise;
+  if (preset.lora && generationCatalog.loras.includes(preset.lora)) {
+    document.getElementById('cfgLora1Name').value = preset.lora;
+    document.getElementById('cfgLora1StrengthModel').value = 1;
+    document.getElementById('cfgLora1StrengthClip').value = 1;
+  }
+  const loraNote = generationCatalog.loras.includes(preset.lora) ? '' : ' (LoRA not installed)';
+  showToast(`Fast Illustration preset applied${loraNote}.`);
+}
+
 function openGenerationSettings() {
   document.getElementById('settingsForm').style.display = 'none';
   document.getElementById('generationSettingsForm').style.display = 'flex';
@@ -1920,12 +1968,13 @@ async function openSettingsModal() {
     ]);
     
     const cfg = await cfgRes.json();
-    let models = { checkpoints: [], loras: [] };
+    let models = { checkpoints: [], loras: [], samplers: [], schedulers: [] };
     if (modelsRes && modelsRes.ok) {
       try {
         models = await modelsRes.json();
       } catch(e) {}
     }
+    generationCatalog = models;
 
     // Populate main server settings
     document.getElementById('cfgComfyUrl').value = cfg.comfy_url || '';
@@ -1934,12 +1983,22 @@ async function openSettingsModal() {
     document.getElementById('cfgWidth').value = cfg.width || 768;
     document.getElementById('cfgHeight').value = cfg.height || 1024;
     document.getElementById('cfgComfyRoot').value = cfg.comfy_root || '';
-    document.getElementById('cfgChunkSize').value = cfg.chunk_size || 1;
+    populateSelectOptions('cfgSamplerName', models.samplers, cfg.sampler_name || 'dpmpp_2m_sde_heun_gpu');
+    populateSelectOptions('cfgScheduler', models.schedulers, cfg.scheduler || 'beta57');
+    document.getElementById('cfgSteps').value = cfg.steps ?? 12;
+    document.getElementById('cfgScale').value = cfg.cfg_scale ?? 1.0;
+    document.getElementById('cfgDenoise').value = cfg.denoise ?? 1.0;
+    document.getElementById('cfgHighresEnabled').checked = cfg.highres_enabled ?? true;
+    document.getElementById('cfgHighresScale').value = cfg.highres_scale ?? 1.5;
+    document.getElementById('cfgHighresSteps').value = cfg.highres_steps ?? 4;
+    document.getElementById('cfgHighresCfgScale').value = cfg.highres_cfg_scale ?? 1.6;
+    document.getElementById('cfgHighresDenoise').value = cfg.highres_denoise ?? 0.45;
+    document.getElementById('cfgAdultContent').checked = cfg.adult_content ?? false;
 
     // Populate Checkpoints
     const ckptSelect = document.getElementById('cfgCheckpoint');
     if (ckptSelect) {
-      ckptSelect.innerHTML = '<option value="">None (Default workflow model)</option>';
+      ckptSelect.innerHTML = '<option value="">Select a checkpoint...</option>';
       (models.checkpoints || []).forEach(ckpt => {
         const opt = document.createElement('option');
         opt.value = ckpt;
@@ -1953,6 +2012,9 @@ async function openSettingsModal() {
         ckptSelect.appendChild(opt);
       }
       ckptSelect.value = cfg.checkpoint || '';
+      if (!ckptSelect.value && models.checkpoints.length > 0) {
+        ckptSelect.value = models.checkpoints[0];
+      }
     }
 
     // Populate Resolution Preset
@@ -2085,7 +2147,21 @@ async function saveSettings() {
     const height = parseInt(document.getElementById('cfgHeight').value) || 1024;
     const comfy_root = document.getElementById('cfgComfyRoot').value.trim();
     const checkpoint = document.getElementById('cfgCheckpoint') ? document.getElementById('cfgCheckpoint').value : '';
-    const chunk_size = Math.max(1, parseInt(document.getElementById('cfgChunkSize').value) || 1);
+    const sampler_name = document.getElementById('cfgSamplerName').value;
+    const scheduler = document.getElementById('cfgScheduler').value;
+    const steps = Math.max(1, parseInt(document.getElementById('cfgSteps').value) || 12);
+    const cfg_scale = Math.max(0, Number.parseFloat(document.getElementById('cfgScale').value) || 0);
+    const denoise = Math.min(1, Math.max(0, Number.parseFloat(document.getElementById('cfgDenoise').value) || 0));
+    const highres_enabled = document.getElementById('cfgHighresEnabled').checked;
+    const highres_scale = Math.max(1, Number.parseFloat(document.getElementById('cfgHighresScale').value) || 1);
+    const highres_steps = Math.max(1, parseInt(document.getElementById('cfgHighresSteps').value) || 4);
+    const highres_cfg_scale = Math.max(0, Number.parseFloat(document.getElementById('cfgHighresCfgScale').value) || 0);
+    const highres_denoise = Math.min(1, Math.max(0, Number.parseFloat(document.getElementById('cfgHighresDenoise').value) || 0));
+    const adult_content = document.getElementById('cfgAdultContent').checked;
+    if (!checkpoint) {
+      alert('Select a checkpoint model before saving.');
+      return;
+    }
 
     const loras = [];
     const lora1Name = document.getElementById('cfgLora1Name') ? document.getElementById('cfgLora1Name').value : '';
@@ -2144,7 +2220,18 @@ async function saveSettings() {
         comfy_root,
         checkpoint,
         loras,
-        chunk_size
+        chunk_size: 1,
+        sampler_name,
+        scheduler,
+        steps,
+        cfg_scale,
+        denoise,
+        highres_enabled,
+        highres_scale,
+        highres_steps,
+        highres_cfg_scale,
+        highres_denoise,
+        adult_content
       })
     });
     if (res.ok) {

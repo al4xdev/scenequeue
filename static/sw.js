@@ -1,4 +1,4 @@
-const CACHE_NAME = 'scenequeue-cache-v1';
+const CACHE_NAME = 'scenequeue-cache-v2';
 const ASSETS = [
   '/',
   '/static/css/styles.css',

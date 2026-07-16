@@ -16,6 +16,12 @@ from .core import logger
 from .enums import GenerationConfig
 
 
+class ComfyQueueError(RuntimeError):
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
 # =====================================================================
 # 1. ComfyUI API Client
 # =====================================================================
@@ -37,9 +43,20 @@ class ComfyClient:
                     resp = await client.post(
                         url, json={"prompt": workflow_api, "client_id": cfg.CLIENT_ID}
                     )
+                    if 400 <= resp.status_code < 500:
+                        detail = resp.text.strip()
+                        raise ComfyQueueError(
+                            f"ComfyUI rejected the workflow ({resp.status_code}): {detail}",
+                            status_code=resp.status_code,
+                        )
                     resp.raise_for_status()
-                    return resp.json().get("prompt_id", "")
-            except (httpx.HTTPError, httpx.ConnectError) as e:
+                    prompt_id = resp.json().get("prompt_id", "")
+                    if not prompt_id:
+                        raise ComfyQueueError("ComfyUI accepted the request without a prompt ID.")
+                    return prompt_id
+            except ComfyQueueError:
+                raise
+            except httpx.HTTPError as e:
                 if attempt == max_retries - 1:
                     logger.error(f"Failed to queue prompt after {max_retries} attempts: {e}")
                     raise
@@ -71,6 +88,7 @@ def generate_thumbnail(img_path: Path, thumb_path: Path) -> None:
 # 3. Prompt Resolver
 # =====================================================================
 SEGMENT_SEPARATOR = "\n\n---\n\n"
+SAFE_NEGATIVE_PROMPT = "nsfw, explicit sexual content, nudity, exposed genitals, fetish content"
 
 
 def wrap_segment(text: str) -> str:
@@ -146,6 +164,57 @@ def _update_common_nodes(wf: dict, output_subdir: str) -> None:
             node_info["inputs"]["filename_prefix"] = f"{output_subdir}/{prefix}"
 
 
+def _insert_configured_loras(wf: dict) -> None:
+    configured = [
+        lora for lora in cfg.LORAS or [] if lora.get("name") and lora.get("name") != "None"
+    ]
+    if not configured:
+        return
+
+    checkpoint_entry = next(
+        (
+            (node_id, node_info)
+            for node_id, node_info in wf.items()
+            if node_info.get("class_type") in ("CheckpointLoaderKJ", "CheckpointLoaderSimple")
+        ),
+        None,
+    )
+    if not checkpoint_entry:
+        raise ValueError("The workflow has no supported checkpoint loader for LoRA injection.")
+
+    checkpoint_id, _ = checkpoint_entry
+    original_node_ids = list(wf)
+    numeric_ids = [int(node_id) for node_id in wf if node_id.isdigit()]
+    next_id = max(numeric_ids, default=0) + 1
+    model_source: list[Any] = [checkpoint_id, 0]
+    clip_source: list[Any] = [checkpoint_id, 1]
+
+    for lora in configured:
+        node_id = str(next_id)
+        next_id += 1
+        wf[node_id] = {
+            "inputs": {
+                "lora_name": lora["name"],
+                "strength_model": float(lora.get("strength_model", 1.0)),
+                "strength_clip": float(lora.get("strength_clip", 1.0)),
+                "model": model_source,
+                "clip": clip_source,
+            },
+            "class_type": "LoraLoader",
+            "_meta": {"title": f"SceneQueue LoRA: {lora['name']}"},
+        }
+        model_source = [node_id, 0]
+        clip_source = [node_id, 1]
+
+    for node_id in original_node_ids:
+        inputs = wf[node_id].get("inputs", {})
+        for input_name, value in list(inputs.items()):
+            if value == [checkpoint_id, 0]:
+                inputs[input_name] = model_source
+            elif value == [checkpoint_id, 1]:
+                inputs[input_name] = clip_source
+
+
 def build_batch(prompt_text: str, chunk_number: str, session_id: str) -> dict:
     logger.info(f"Building batch for session {session_id}, chunk {chunk_number}")
     wf = _load_template(cfg.WORKFLOW_PATH)
@@ -158,6 +227,18 @@ def build_batch(prompt_text: str, chunk_number: str, session_id: str) -> dict:
                 node_info["inputs"]["ckpt_name"] = cfg.CHECKPOINT
                 logger.info(f"Injected checkpoint {cfg.CHECKPOINT} into node {node_id}")
                 break
+
+    checkpoint_nodes = [
+        (node_id, node_info)
+        for node_id, node_info in wf.items()
+        if node_info.get("class_type") in ("CheckpointLoaderKJ", "CheckpointLoaderSimple")
+    ]
+    for node_id, node_info in checkpoint_nodes:
+        if not str(node_info.get("inputs", {}).get("ckpt_name", "")).strip():
+            raise ValueError(
+                f"Checkpoint node {node_id} has no model selected. "
+                "Open Settings → Generation and choose a checkpoint."
+            )
 
     # Find all LoraLoader nodes sorted by ID
     lora_nodes = []
@@ -185,6 +266,66 @@ def build_batch(prompt_text: str, chunk_number: str, session_id: str) -> dict:
             node_info["inputs"]["strength_model"] = 0.0
             node_info["inputs"]["strength_clip"] = 0.0
             logger.info(f"Disabled LoRA node {node_id} (not configured)")
+
+    if not lora_nodes:
+        _insert_configured_loras(wf)
+
+    sampler_nodes = [
+        (node_id, node_info)
+        for node_id, node_info in sorted(
+            wf.items(), key=lambda item: int(item[0]) if item[0].isdigit() else 999
+        )
+        if node_info.get("class_type") in {"KSampler", "easy fullkSampler"}
+    ]
+    if sampler_nodes:
+        _, base_sampler = sampler_nodes[0]
+        base_sampler["inputs"].update(
+            {
+                "steps": cfg.STEPS,
+                "cfg": cfg.CFG_SCALE,
+                "sampler_name": cfg.SAMPLER_NAME,
+                "scheduler": cfg.SCHEDULER,
+                "denoise": cfg.DENOISE,
+            }
+        )
+
+    if len(sampler_nodes) > 1:
+        _, highres_sampler = sampler_nodes[1]
+        highres_sampler["inputs"].update(
+            {
+                "steps": cfg.HIGHRES_STEPS,
+                "cfg": cfg.HIGHRES_CFG_SCALE,
+                "sampler_name": cfg.SAMPLER_NAME,
+                "scheduler": cfg.SCHEDULER,
+                "denoise": cfg.HIGHRES_DENOISE,
+            }
+        )
+
+    highres_sampler_id = sampler_nodes[1][0] if len(sampler_nodes) > 1 else None
+    base_sampler_id = sampler_nodes[0][0] if sampler_nodes else None
+    for node_id, node_info in wf.items():
+        class_type = node_info.get("class_type", "")
+        title = node_info.get("_meta", {}).get("title", "").lower()
+        if class_type == "LatentUpscale":
+            node_info["inputs"]["width"] = max(64, round(cfg.WIDTH * cfg.HIGHRES_SCALE / 8) * 8)
+            node_info["inputs"]["height"] = max(64, round(cfg.HEIGHT * cfg.HIGHRES_SCALE / 8) * 8)
+        elif class_type == "VAEDecode" and base_sampler_id:
+            source_id = (
+                highres_sampler_id
+                if cfg.HIGHRES_ENABLED and highres_sampler_id
+                else base_sampler_id
+            )
+            node_info["inputs"]["samples"] = [source_id, 0]
+        elif (
+            class_type == "CLIPTextEncode"
+            and node_id != cfg.TARGET_NODE_ID
+            and ("negative" in title or isinstance(node_info["inputs"].get("text"), str))
+        ):
+            negative = str(node_info["inputs"].get("text", "")).strip()
+            if not cfg.ADULT_CONTENT and SAFE_NEGATIVE_PROMPT not in negative:
+                node_info["inputs"]["text"] = ", ".join(
+                    value for value in [negative, SAFE_NEGATIVE_PROMPT] if value
+                )
 
     if cfg.TARGET_NODE_ID in wf:
         ni = wf[cfg.TARGET_NODE_ID]

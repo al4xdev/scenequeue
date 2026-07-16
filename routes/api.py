@@ -36,6 +36,7 @@ from src.core import (
 from src.enums import Appearance, GenerationConfig, Pose, Scene, Style, Subject, Wardrobe
 from src.workflows import (
     ComfyClient,
+    ComfyQueueError,
     PromptResolver,
     build_batch,
     build_upscale,
@@ -46,6 +47,8 @@ from src.workflows import (
 
 router = APIRouter()
 DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+RECOMMENDED_CHECKPOINT = ""
+RECOMMENDED_LORA = ""
 
 
 def _validate_database_name(name: str) -> str:
@@ -279,7 +282,18 @@ class ConfigRequest(BaseModel):
     comfy_root: str
     checkpoint: str | None = None
     loras: list[dict] | None = None
-    chunk_size: int = Field(default=1, ge=1, le=64)
+    chunk_size: int = Field(default=1, ge=1, le=1)
+    sampler_name: str = "dpmpp_2m_sde_heun_gpu"
+    scheduler: str = "beta57"
+    steps: int = Field(default=12, ge=1, le=1000)
+    cfg_scale: float = Field(default=1.0, ge=0, le=100)
+    denoise: float = Field(default=1.0, ge=0, le=1)
+    highres_enabled: bool = True
+    highres_scale: float = Field(default=1.5, ge=1, le=4)
+    highres_steps: int = Field(default=4, ge=1, le=1000)
+    highres_cfg_scale: float = Field(default=1.6, ge=0, le=100)
+    highres_denoise: float = Field(default=0.45, ge=0, le=1)
+    adult_content: bool = False
 
 
 @router.post("/api/config")
@@ -294,13 +308,23 @@ async def update_config(cfg_req: ConfigRequest):
         "checkpoint": cfg_req.checkpoint or "",
         "loras": cfg_req.loras or [],
         "chunk_size": cfg_req.chunk_size,
+        "sampler_name": cfg_req.sampler_name,
+        "scheduler": cfg_req.scheduler,
+        "steps": cfg_req.steps,
+        "cfg_scale": cfg_req.cfg_scale,
+        "denoise": cfg_req.denoise,
+        "highres_enabled": cfg_req.highres_enabled,
+        "highres_scale": cfg_req.highres_scale,
+        "highres_steps": cfg_req.highres_steps,
+        "highres_cfg_scale": cfg_req.highres_cfg_scale,
+        "highres_denoise": cfg_req.highres_denoise,
+        "adult_content": cfg_req.adult_content,
     }
     _save_and_reload(new_cfg)
     return {"status": "ok"}
 
 
-@router.get("/api/comfy-models")
-async def get_comfy_models():
+async def _fetch_comfy_catalog() -> dict[str, list[str]]:
     async with httpx.AsyncClient(timeout=5.0) as client:
         checkpoints = []
         try:
@@ -344,10 +368,44 @@ async def get_comfy_models():
         except Exception as e:
             logger.warning(f"Failed to fetch LoraLoader metadata: {e}")
 
+        samplers = []
+        schedulers = []
+        try:
+            resp = await client.get(f"{cfg.COMFY_URL}/object_info/KSampler")
+            if resp.status_code == 200:
+                required = resp.json().get("KSampler", {}).get("input", {}).get("required", {})
+                samplers = required.get("sampler_name", [[]])[0]
+                schedulers = required.get("scheduler", [[]])[0]
+        except Exception as e:
+            logger.warning(f"Failed to fetch KSampler metadata: {e}")
+
         return {
             "checkpoints": checkpoints if isinstance(checkpoints, list) else [],
             "loras": loras if isinstance(loras, list) else [],
+            "samplers": samplers if isinstance(samplers, list) else [],
+            "schedulers": schedulers if isinstance(schedulers, list) else [],
         }
+
+
+@router.get("/api/comfy-models")
+async def get_comfy_models():
+    catalog = await _fetch_comfy_catalog()
+    catalog["recommended_preset"] = {
+        "name": "Fast Illustration",
+        "checkpoint": RECOMMENDED_CHECKPOINT,
+        "lora": RECOMMENDED_LORA,
+        "sampler_name": "dpmpp_2m_sde_heun_gpu",
+        "scheduler": "beta57",
+        "steps": 12,
+        "cfg_scale": 1.0,
+        "denoise": 1.0,
+        "highres_enabled": True,
+        "highres_scale": 1.5,
+        "highres_steps": 4,
+        "highres_cfg_scale": 1.6,
+        "highres_denoise": 0.45,
+    }
+    return catalog
 
 
 # =====================================================================
@@ -701,10 +759,28 @@ async def generate_batch(req: BatchRequest):
     if not all_segments:
         raise HTTPException(status_code=400, detail="No segments found in database")
 
+    if not cfg.CHECKPOINT:
+        catalog = await _fetch_comfy_catalog()
+        checkpoints = catalog["checkpoints"]
+        if not checkpoints:
+            raise HTTPException(
+                status_code=400,
+                detail="ComfyUI did not report any installed checkpoints.",
+            )
+        selected = (
+            RECOMMENDED_CHECKPOINT if RECOMMENDED_CHECKPOINT in checkpoints else checkpoints[0]
+        )
+        saved_config = cfg.load_config()
+        saved_config["checkpoint"] = selected
+        cfg.save_config(saved_config)
+        cfg.reload_config()
+        logger.info(f"Automatically selected checkpoint {selected}")
+
     client = ComfyClient.setup(cfg.COMFY_URL)
     resolver = PromptResolver.setup(config)
     chunk_size = cfg.CHUNK_SIZE
     new_items = []
+    queue_errors = []
     global_idx = 0
     db_name = get_active_db_name()
 
@@ -716,12 +792,19 @@ async def generate_batch(req: BatchRequest):
 
         full_original = join_segments(chunk_texts)
         resolved_text = resolver.resolve_text(full_original)
-        wf = build_batch(resolved_text, chunk_number, session_id)
         try:
+            wf = build_batch(resolved_text, chunk_number, session_id)
             prompt_id = await client.queue_prompt(wf)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except ComfyQueueError as e:
+            logger.error(f"Failed to queue generation batch chunk {chunk_number}: {e}")
+            queue_errors.append(str(e))
+            break
         except Exception as e:
             logger.error(f"Failed to queue generation batch chunk {chunk_number}: {e}")
-            continue
+            queue_errors.append(f"Could not reach ComfyUI: {e}")
+            break
 
         for seg_idx in range(chunk_count):
             item = {
@@ -746,14 +829,25 @@ async def generate_batch(req: BatchRequest):
                     "scene": req.scene,
                     "style": req.style,
                 },
-                "width": cfg.WIDTH,
-                "height": cfg.HEIGHT,
+                "width": (
+                    round(cfg.WIDTH * cfg.HIGHRES_SCALE / 8) * 8
+                    if cfg.HIGHRES_ENABLED
+                    else cfg.WIDTH
+                ),
+                "height": (
+                    round(cfg.HEIGHT * cfg.HIGHRES_SCALE / 8) * 8
+                    if cfg.HIGHRES_ENABLED
+                    else cfg.HEIGHT
+                ),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             new_items.append(item)
         global_idx += chunk_count
 
-    # Store session metadata for isolated prompt resolution
+    if not new_items:
+        detail = queue_errors[0] if queue_errors else "No generation jobs were queued."
+        raise HTTPException(status_code=502, detail=detail)
+
     upsert_session(
         session_id,
         db_name,
@@ -772,7 +866,12 @@ async def generate_batch(req: BatchRequest):
         st = new_items + st
         save_state(st)
 
-    return {"session_id": session_id, "items": new_items, "count": len(new_items)}
+    return {
+        "session_id": session_id,
+        "items": new_items,
+        "count": len(new_items),
+        "warnings": queue_errors,
+    }
 
 
 class AIPromptRequest(BaseModel):

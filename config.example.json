@@ -7,5 +7,16 @@
   "comfy_root": "",
   "checkpoint": "",
   "loras": [],
-  "chunk_size": 1
+  "chunk_size": 1,
+  "sampler_name": "dpmpp_2m_sde_heun_gpu",
+  "scheduler": "beta57",
+  "steps": 12,
+  "cfg_scale": 1.0,
+  "denoise": 1.0,
+  "highres_enabled": true,
+  "highres_scale": 1.5,
+  "highres_steps": 4,
+  "highres_cfg_scale": 1.6,
+  "highres_denoise": 0.45,
+  "adult_content": false
 }

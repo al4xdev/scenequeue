@@ -54,13 +54,28 @@ class TestAPI(unittest.TestCase):
             "comfy_root": "/opt/ComfyUI",
             "checkpoint": "example.safetensors",
             "loras": [],
-            "chunk_size": 4,
+            "chunk_size": 1,
         }
 
         response = self.client.post("/api/config", json=payload)
 
         self.assertEqual(response.status_code, 200)
-        mock_save_config.assert_called_once_with(payload)
+        mock_save_config.assert_called_once_with(
+            {
+                **payload,
+                "sampler_name": "dpmpp_2m_sde_heun_gpu",
+                "scheduler": "beta57",
+                "steps": 12,
+                "cfg_scale": 1.0,
+                "denoise": 1.0,
+                "highres_enabled": True,
+                "highres_scale": 1.5,
+                "highres_steps": 4,
+                "highres_cfg_scale": 1.6,
+                "highres_denoise": 0.45,
+                "adult_content": False,
+            }
+        )
         mock_reload_config.assert_called_once()
 
     def test_update_config_rejects_invalid_generation_values(self):
