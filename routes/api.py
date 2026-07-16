@@ -6,6 +6,7 @@ import shutil
 import time
 import uuid
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 
 import httpx
@@ -19,6 +20,8 @@ from src.core import (
     FRONTEND_PATH,
     IMAGES_DIR,
     THUMBS_DIR,
+    JsonDict,
+    State,
     delete_session_record,
     get_active_db_name,
     get_all_segments,
@@ -47,8 +50,6 @@ from src.workflows import (
 
 router = APIRouter()
 DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-RECOMMENDED_CHECKPOINT = ""
-RECOMMENDED_LORA = ""
 
 
 def _validate_database_name(name: str) -> str:
@@ -62,7 +63,7 @@ def _validate_database_name(name: str) -> str:
 
 
 def _update_db_segment(
-    db: dict,
+    db: JsonDict,
     segment_index: int,
     new_text: str,
     history_limit: int = 5,
@@ -95,13 +96,18 @@ def _update_db_segment(
     return False
 
 
-def resolve_enum_value(db_type: str, key: str, fallback_enum, db_name: str | None = None) -> str:
+def resolve_enum_value(
+    db_type: str,
+    key: str,
+    fallback_enum: type[Enum],
+    db_name: str | None = None,
+) -> str:
     effective_db = db_name if db_name else get_active_db_name(db_type)
     lookup = get_db_lookup(db_type, effective_db)
     if key in lookup:
         return lookup[key]
     try:
-        return fallback_enum[key].value
+        return str(fallback_enum[key].value)
     except KeyError:
         return key
 
@@ -121,9 +127,7 @@ def _check_ai_rate_limit() -> None:
     _ai_request_history.append(now)
 
 
-def _resolve_generation_config(
-    cfg_data: dict | Any, db_name: str | None = None
-) -> GenerationConfig:
+def _resolve_generation_config(cfg_data: Any, db_name: str | None = None) -> GenerationConfig:
     if hasattr(cfg_data, "model_dump"):
         data = cfg_data.model_dump()
     elif hasattr(cfg_data, "dict"):
@@ -174,7 +178,7 @@ async def _call_openrouter(messages: list[dict[str, str]], temperature: float = 
                 )
 
                 if resp.status_code == 200:
-                    new_prompt = resp.json()["choices"][0]["message"]["content"].strip()
+                    new_prompt = str(resp.json()["choices"][0]["message"]["content"]).strip()
                     if new_prompt.startswith("```"):
                         lines = new_prompt.splitlines()
                         if lines[0].startswith("```"):
@@ -201,7 +205,7 @@ async def _call_openrouter(messages: list[dict[str, str]], temperature: float = 
 # 1. Frontend & Meta Routes
 # =====================================================================
 @router.get("/", response_class=HTMLResponse)
-async def serve_frontend():
+async def serve_frontend() -> HTMLResponse:
     if FRONTEND_PATH.exists():
         with FRONTEND_PATH.open("r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
@@ -209,7 +213,7 @@ async def serve_frontend():
 
 
 @router.get("/manifest.json")
-async def serve_manifest():
+async def serve_manifest() -> FileResponse:
     manifest_path = cfg.ROOT / "static" / "manifest.json"
     if manifest_path.exists():
         return FileResponse(manifest_path, media_type="application/json")
@@ -217,7 +221,7 @@ async def serve_manifest():
 
 
 @router.get("/sw.js")
-async def serve_sw():
+async def serve_sw() -> FileResponse:
     sw_path = cfg.ROOT / "static" / "sw.js"
     if sw_path.exists():
         return FileResponse(sw_path, media_type="application/javascript")
@@ -225,8 +229,8 @@ async def serve_sw():
 
 
 @router.get("/api/enums")
-async def get_enums():
-    def load_type_enums(db_type: str, fallback_enum) -> list[dict]:
+async def get_enums() -> JsonDict:
+    def load_type_enums(db_type: str, fallback_enum: type[Enum]) -> State:
         lookup = get_db_lookup(db_type, get_active_db_name(db_type))
         if not lookup:
             return [{"value": e.value, "name": e.name} for e in fallback_enum]
@@ -243,13 +247,13 @@ async def get_enums():
 
 
 @router.get("/api/templates")
-async def get_templates():
+async def get_templates() -> JsonDict:
     segs = get_all_segments()
     return {"count": len(segs), "db_name": get_active_db_name()}
 
 
 @router.get("/api/comfy-status")
-async def get_comfy_status():
+async def get_comfy_status() -> dict[str, str]:
     try:
         async with httpx.AsyncClient(timeout=1.0) as client:
             resp = await client.get(f"{cfg.COMFY_URL}/queue")
@@ -263,13 +267,13 @@ async def get_comfy_status():
 # =====================================================================
 # 2. Config Routes
 # =====================================================================
-def _save_and_reload(new_cfg: dict) -> None:
+def _save_and_reload(new_cfg: JsonDict) -> None:
     cfg.save_config(new_cfg)
     cfg.reload_config()
 
 
 @router.get("/api/config")
-async def get_config():
+async def get_config() -> JsonDict:
     public_config = cfg.load_config()
     public_config["openrouter_configured"] = bool(cfg.OPENROUTER_API_KEY)
     public_config["openrouter_models"] = cfg.OPENROUTER_MODELS
@@ -284,7 +288,7 @@ class ConfigRequest(BaseModel):
     height: int = Field(ge=64, le=16384)
     comfy_root: str
     checkpoint: str | None = None
-    loras: list[dict] | None = None
+    loras: list[JsonDict] | None = None
     chunk_size: int = Field(default=1, ge=1, le=1)
     sampler_name: str = "dpmpp_2m_sde_heun_gpu"
     scheduler: str = "beta57"
@@ -303,7 +307,7 @@ class ConfigRequest(BaseModel):
 
 
 @router.post("/api/config")
-async def update_config(cfg_req: ConfigRequest):
+async def update_config(cfg_req: ConfigRequest) -> dict[str, str]:
     new_cfg = {
         "comfy_url": cfg_req.comfy_url,
         "target_node_id": cfg_req.target_node_id,
@@ -339,7 +343,7 @@ async def update_config(cfg_req: ConfigRequest):
     return {"status": "ok"}
 
 
-async def _fetch_comfy_catalog() -> dict[str, list[str]]:
+async def _fetch_comfy_catalog() -> JsonDict:
     async with httpx.AsyncClient(timeout=5.0) as client:
         checkpoints = []
         try:
@@ -403,12 +407,10 @@ async def _fetch_comfy_catalog() -> dict[str, list[str]]:
 
 
 @router.get("/api/comfy-models")
-async def get_comfy_models():
+async def get_comfy_models() -> JsonDict:
     catalog = await _fetch_comfy_catalog()
     catalog["recommended_preset"] = {
         "name": "Fast Illustration",
-        "checkpoint": RECOMMENDED_CHECKPOINT,
-        "lora": RECOMMENDED_LORA,
         "sampler_name": "dpmpp_2m_sde_heun_gpu",
         "scheduler": "beta57",
         "steps": 12,
@@ -427,7 +429,7 @@ async def get_comfy_models():
 # 3. Databases Routes
 # =====================================================================
 @router.get("/api/databases")
-async def get_databases(db_type: str = Query("prompts", alias="type")):
+async def get_databases(db_type: str = Query("prompts", alias="type")) -> State:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     dbs = []
@@ -463,7 +465,7 @@ class SetActiveDbRequest(BaseModel):
 
 
 @router.post("/api/databases/active")
-async def set_active_database(req: SetActiveDbRequest):
+async def set_active_database(req: SetActiveDbRequest) -> JsonDict:
     db_type = req.type
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
@@ -479,7 +481,9 @@ async def set_active_database(req: SetActiveDbRequest):
 
 
 @router.delete("/api/databases/{name}")
-async def delete_database(name: str, db_type: str = Query("prompts", alias="type")):
+async def delete_database(
+    name: str, db_type: str = Query("prompts", alias="type")
+) -> JsonDict:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     name = _validate_database_name(name)
@@ -511,7 +515,7 @@ async def delete_database(name: str, db_type: str = Query("prompts", alias="type
 # 4. Prompt / Segment Management Routes
 # =====================================================================
 @router.get("/api/prompts")
-async def get_prompts(db_type: str = Query("prompts", alias="type")):
+async def get_prompts(db_type: str = Query("prompts", alias="type")) -> JsonDict:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     db = load_db(db_type=db_type)
@@ -524,7 +528,9 @@ class PromptUpdateRequest(BaseModel):
 
 
 @router.post("/api/prompts")
-async def update_prompt(req: PromptUpdateRequest, db_type: str = Query("prompts", alias="type")):
+async def update_prompt(
+    req: PromptUpdateRequest, db_type: str = Query("prompts", alias="type")
+) -> JsonDict:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     db = load_db(db_type=db_type)
@@ -550,7 +556,9 @@ class SegmentUpdateRequest(BaseModel):
 
 
 @router.post("/api/prompts/segment")
-async def update_segment(req: SegmentUpdateRequest, db_type: str = Query("prompts", alias="type")):
+async def update_segment(
+    req: SegmentUpdateRequest, db_type: str = Query("prompts", alias="type")
+) -> JsonDict:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     active_db = get_active_db_name(db_type)
@@ -566,7 +574,7 @@ async def update_segment(req: SegmentUpdateRequest, db_type: str = Query("prompt
 @router.delete("/api/prompts/{index}")
 async def delete_segment(
     index: int, db_type: str = Query("prompts", alias="type"), session_id: str | None = None
-):
+) -> JsonDict:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     db = load_db(db_type=db_type)
@@ -621,7 +629,9 @@ class AddSegmentRequest(BaseModel):
 
 
 @router.post("/api/prompts/add")
-async def add_segment(req: AddSegmentRequest, db_type: str = Query("prompts", alias="type")):
+async def add_segment(
+    req: AddSegmentRequest, db_type: str = Query("prompts", alias="type")
+) -> JsonDict:
     if db_type not in cfg.DB_TYPES:
         db_type = "prompts"
     db = load_db(db_type=db_type)
@@ -698,7 +708,7 @@ async def add_segment(req: AddSegmentRequest, db_type: str = Query("prompts", al
 
 
 @router.get("/api/item-template/{item_id}")
-async def get_item_template(item_id: str):
+async def get_item_template(item_id: str) -> JsonDict:
     async with state_lock:
         st = load_state()
     item = next((i for i in st if i["id"] == item_id), None)
@@ -727,7 +737,7 @@ async def get_item_template(item_id: str):
 
 
 @router.get("/api/autocomplete-tags")
-async def get_autocomplete_tags():
+async def get_autocomplete_tags() -> list[str]:
     segs = get_all_segments()
     tags = set()
     for s in segs:
@@ -766,7 +776,7 @@ class BatchRequest(BaseModel):
 
 
 @router.post("/api/generate-batch")
-async def generate_batch(req: BatchRequest):
+async def generate_batch(req: BatchRequest) -> JsonDict:
     config = _resolve_generation_config(req)
 
     session_id = str(uuid.uuid4())
@@ -782,9 +792,7 @@ async def generate_batch(req: BatchRequest):
                 status_code=400,
                 detail="ComfyUI did not report any installed checkpoints.",
             )
-        selected = (
-            RECOMMENDED_CHECKPOINT if RECOMMENDED_CHECKPOINT in checkpoints else checkpoints[0]
-        )
+        selected = checkpoints[0]
         saved_config = cfg.load_config()
         saved_config["checkpoint"] = selected
         cfg.save_config(saved_config)
@@ -897,7 +905,7 @@ class AIPromptRequest(BaseModel):
 
 
 @router.post("/api/ai/preview-prompt")
-async def ai_preview_prompt(req: AIPromptRequest):
+async def ai_preview_prompt(req: AIPromptRequest) -> JsonDict:
     if not cfg.OPENROUTER_API_KEY:
         raise HTTPException(
             status_code=400,
@@ -956,7 +964,7 @@ class EditPromptRequest(BaseModel):
 
 
 @router.post("/api/edit-prompt")
-async def edit_prompt(req: EditPromptRequest):
+async def edit_prompt(req: EditPromptRequest) -> JsonDict:
     if not req.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
 
@@ -1031,7 +1039,7 @@ class InsertJobRequest(BaseModel):
 
 
 @router.post("/api/insert-segment-job")
-async def insert_segment_job(req: InsertJobRequest):
+async def insert_segment_job(req: InsertJobRequest) -> JsonDict:
     if req.position not in ("before", "after"):
         raise HTTPException(status_code=400, detail="Invalid position")
     if req.count < 1:
@@ -1212,8 +1220,9 @@ async def insert_segment_job(req: InsertJobRequest):
                 # Resolve prompt using THIS session's own config (not the source item's)
                 if session_config:
                     try:
+                        session_db_name = session["db_name"] if session else db_name
                         session_resolver_cfg = _resolve_generation_config(
-                            session_config, session["db_name"]
+                            session_config, session_db_name
                         )
                         session_resolver = PromptResolver.setup(session_resolver_cfg)
                         session_resolved = session_resolver.resolve_text(wrap_segment(default_text))
@@ -1254,7 +1263,7 @@ class DeleteJobRequest(BaseModel):
 
 
 @router.post("/api/delete-segment-job")
-async def delete_segment_job(req: DeleteJobRequest):
+async def delete_segment_job(req: DeleteJobRequest) -> JsonDict:
     async with state_lock:
         st = load_state()
         item = next((i for i in st if i["id"] == req.item_id), None)
@@ -1321,13 +1330,13 @@ async def delete_segment_job(req: DeleteJobRequest):
 @router.get("/api/state")
 async def get_state(
     limit: int = 50, offset: int = 0, root_id: str | None = None, session_id: str | None = None
-):
+) -> State:
     async with state_lock:
         st = load_state()
     if session_id:
         items = [i for i in st if i.get("session_id") == session_id]
 
-        def _sort_key(item):
+        def _sort_key(item: JsonDict) -> tuple[Any, int]:
             seg_idx = item.get("segment_index", 0)
             is_upscaled = 1 if item.get("upscaled") else 0
             return (seg_idx, is_upscaled)
@@ -1339,8 +1348,8 @@ async def get_state(
         if not root:
             raise HTTPException(status_code=404, detail="Image not found")
 
-        def get_descendants(pid):
-            children = []
+        def get_descendants(pid: str) -> State:
+            children: State = []
             for item in st:
                 if item.get("parent_id") == pid:
                     children.append(item)
@@ -1363,11 +1372,11 @@ async def get_state(
 
 
 @router.get("/api/sessions")
-async def get_sessions():
+async def get_sessions() -> State:
     async with state_lock:
         st = load_state()
 
-    sessions: dict[str, dict] = {}
+    sessions: dict[str, JsonDict] = {}
     for item in st:
         sid = item.get("session_id", "")
         if not sid:
@@ -1414,7 +1423,7 @@ class DeleteRequest(BaseModel):
 
 
 @router.post("/api/items/delete")
-async def delete_items(req: DeleteRequest):
+async def delete_items(req: DeleteRequest) -> JsonDict:
     async with state_lock:
         st = load_state()
         all_removed = set()
@@ -1483,7 +1492,7 @@ async def delete_items(req: DeleteRequest):
 
 
 @router.get("/thumbnails/{item_id}.jpg")
-async def serve_thumbnail(item_id: str):
+async def serve_thumbnail(item_id: str) -> FileResponse:
     thumb_path = THUMBS_DIR / f"{item_id}.jpg"
     if thumb_path.exists():
         return FileResponse(thumb_path)
@@ -1499,7 +1508,7 @@ async def serve_thumbnail(item_id: str):
 
 
 @router.get("/images/{item_id}.png")
-async def serve_image(item_id: str):
+async def serve_image(item_id: str) -> FileResponse:
     local_path = IMAGES_DIR / f"{item_id}.png"
     if local_path.exists():
         return FileResponse(local_path)
@@ -1507,7 +1516,7 @@ async def serve_image(item_id: str):
 
 
 @router.get("/api/image-data/{item_id}")
-async def get_image_data(item_id: str):
+async def get_image_data(item_id: str) -> FileResponse:
     async with state_lock:
         st = load_state()
     item = next((i for i in st if i["id"] == item_id), None)
@@ -1537,7 +1546,7 @@ async def get_image_data(item_id: str):
 # 7. Upscale Routes
 # =====================================================================
 @router.post("/api/upscale-item")
-async def upscale_item(item_id: str):
+async def upscale_item(item_id: str) -> JsonDict:
     async with state_lock:
         st = load_state()
     item = next((i for i in st if i["id"] == item_id), None)
@@ -1589,7 +1598,7 @@ class UpscaleSessionRequest(BaseModel):
 
 
 @router.post("/api/upscale-session")
-async def upscale_session(req: UpscaleSessionRequest):
+async def upscale_session(req: UpscaleSessionRequest) -> JsonDict:
     async with state_lock:
         st = load_state()
 
@@ -1648,7 +1657,7 @@ async def upscale_session(req: UpscaleSessionRequest):
 
 
 @router.post("/api/sessions/{session_id}/retry-failed")
-async def retry_failed_session_items(session_id: str):
+async def retry_failed_session_items(session_id: str) -> JsonDict:
     async with state_lock:
         st = load_state()
 
@@ -1737,7 +1746,7 @@ async def retry_failed_session_items(session_id: str):
 
 
 @router.post("/api/sessions/{session_id}/delete")
-async def delete_session(session_id: str):
+async def delete_session(session_id: str) -> JsonDict:
     async with state_lock:
         st = load_state()
         session_items = [item for item in st if item.get("session_id") == session_id]

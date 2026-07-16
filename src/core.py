@@ -11,7 +11,10 @@ import uuid
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+
+JsonDict = dict[str, Any]
+State = list[JsonDict]
 
 # =====================================================================
 # 1. Paths & Directories
@@ -68,7 +71,7 @@ def ensure_dirs() -> None:
 # =====================================================================
 # 2. Config Loading & Saving
 # =====================================================================
-def _default_config() -> dict:
+def _default_config() -> JsonDict:
     return {
         "comfy_url": os.getenv("COMFY_URL", "http://127.0.0.1:8188"),
         "target_node_id": os.getenv("TARGET_NODE_ID", "2"),
@@ -93,11 +96,13 @@ def _default_config() -> dict:
     }
 
 
-def load_config() -> dict:
+def load_config() -> JsonDict:
     if CONFIG_FILE.exists():
         try:
             with CONFIG_FILE.open("r", encoding="utf-8") as f:
                 saved = json.load(f)
+            if not isinstance(saved, dict):
+                raise ValueError("config.json must contain a JSON object")
             cfg = _default_config()
             cfg.update(saved)
             return cfg
@@ -108,7 +113,7 @@ def load_config() -> dict:
     return _default_config()
 
 
-def save_config(cfg: dict) -> None:
+def save_config(cfg: JsonDict) -> None:
     _atomic_write_json(CONFIG_FILE, cfg)
 
 
@@ -221,7 +226,7 @@ HEIGHT = 1024
 COMFY_ROOT = Path()
 OUTPUT_DIR = Path()
 CHECKPOINT = ""
-LORAS = []
+LORAS: list[JsonDict] = []
 OPENROUTER_API_KEY = ""
 OPENROUTER_MODELS = _DEFAULT_OPENROUTER_MODELS
 CHUNK_SIZE = 1
@@ -302,16 +307,6 @@ reload_config()
 # =====================================================================
 # 3. Logging System
 # =====================================================================
-def _log_method(func: Callable[..., Log]) -> Callable[..., Log]:
-    def wrapper(self: Log, msg: str, *args: Any, **kwargs: Any) -> Log:
-        if self._logger:
-            self._count += 1
-            func(self, f"[{self._count}] {msg}", *args, **kwargs)
-        return self
-
-    return wrapper
-
-
 class Log:
     def __init__(self) -> None:
         self._logger: logging.Logger | None = None
@@ -336,21 +331,23 @@ class Log:
         instance._logger = logger
         return instance
 
-    @_log_method
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self._logger.info(msg, *args, **kwargs)
+    def _write(self, level: str, msg: str, *args: Any, **kwargs: Any) -> Log:
+        if self._logger is not None:
+            self._count += 1
+            getattr(self._logger, level)(f"[{self._count}] {msg}", *args, **kwargs)
+        return self
 
-    @_log_method
-    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self._logger.warning(msg, *args, **kwargs)
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> Log:
+        return self._write("info", msg, *args, **kwargs)
 
-    @_log_method
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self._logger.error(msg, *args, **kwargs)
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> Log:
+        return self._write("warning", msg, *args, **kwargs)
 
-    @_log_method
-    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self._logger.debug(msg, *args, **kwargs)
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> Log:
+        return self._write("error", msg, *args, **kwargs)
+
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> Log:
+        return self._write("debug", msg, *args, **kwargs)
 
 
 logger = Log.config(LOG_FILE, "scenequeue")
@@ -369,18 +366,19 @@ active_progress: dict[str, dict[str, Any]] = {}
 state_lock = asyncio.Lock()
 
 
-def load_state() -> list:
+def load_state() -> State:
     if STATE_FILE.exists():
         try:
             with STATE_FILE.open("r", encoding="utf-8") as f:
-                return json.load(f)
+                value = json.load(f)
+                return value if isinstance(value, list) else []
         except Exception as e:
             logger.error(f"Failed to load state.json: {e}")
             return []
     return []
 
 
-def save_state(state: list) -> None:
+def save_state(state: State) -> None:
     _atomic_write_json(STATE_FILE, state)
 
 
@@ -420,15 +418,16 @@ def get_active_db_path(db_type: str = "prompts") -> Path:
 
 
 @lru_cache(maxsize=32)
-def _load_db_cached(name: str, db_type: str) -> dict:
+def _load_db_cached(name: str, db_type: str) -> JsonDict:
     path = DATABASES_DIR / db_type / f"{name}.json"
     if path.exists():
         with path.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            value = json.load(f)
+            return value if isinstance(value, dict) else {"version": 2, "segments": []}
     return {"version": 2, "segments": []}
 
 
-def load_db(name: str | None = None, db_type: str = "prompts") -> dict:
+def load_db(name: str | None = None, db_type: str = "prompts") -> JsonDict:
     if name is None:
         name = get_active_db_name(db_type)
     return copy.deepcopy(_load_db_cached(name, db_type))
@@ -469,10 +468,11 @@ def get_db_lookup(db_type: str, db_name: str) -> dict[str, str]:
     return copy.copy(_get_db_lookup_cached(db_type, db_name))
 
 
-get_db_lookup.cache_clear = _get_db_lookup_cached.cache_clear
+def clear_db_lookup_cache() -> None:
+    _get_db_lookup_cached.cache_clear()
 
 
-def save_db(db: dict, name: str | None = None, db_type: str = "prompts") -> None:
+def save_db(db: JsonDict, name: str | None = None, db_type: str = "prompts") -> None:
     if name:
         path = DATABASES_DIR / db_type / f"{name}.json"
     else:
@@ -483,7 +483,7 @@ def save_db(db: dict, name: str | None = None, db_type: str = "prompts") -> None
     _get_db_lookup_cached.cache_clear()
 
 
-def get_all_segments(db_type: str = "prompts") -> list[dict]:
+def get_all_segments(db_type: str = "prompts") -> State:
     db = load_db(db_type=db_type)
     return sorted(db.get("segments", []), key=lambda s: s.get("index", 0))
 
@@ -494,30 +494,31 @@ def get_all_segments(db_type: str = "prompts") -> list[dict]:
 SESSIONS_FILE = GALLERY_DIR / "sessions.json"
 
 
-def load_sessions() -> list[dict]:
+def load_sessions() -> State:
     """Load the explicit sessions list from sessions.json."""
     if SESSIONS_FILE.exists():
         try:
             with SESSIONS_FILE.open("r", encoding="utf-8") as f:
-                return json.load(f)
+                value = json.load(f)
+                return value if isinstance(value, list) else []
         except Exception as e:
             logger.error(f"Failed to load sessions.json: {e}")
             return []
     return []
 
 
-def save_sessions(sessions: list[dict]) -> None:
+def save_sessions(sessions: State) -> None:
     """Persist the sessions list to sessions.json."""
     _atomic_write_json(SESSIONS_FILE, sessions)
 
 
-def get_session(session_id: str) -> dict | None:
+def get_session(session_id: str) -> JsonDict | None:
     """Retrieve a single session by ID, or None if not found."""
     sessions = load_sessions()
     return next((s for s in sessions if s["id"] == session_id), None)
 
 
-def upsert_session(session_id: str, db_name: str, config: dict) -> dict:
+def upsert_session(session_id: str, db_name: str, config: JsonDict) -> JsonDict:
     """Create or update a session. Returns the session record."""
     sessions = load_sessions()
     existing = next((s for s in sessions if s["id"] == session_id), None)
@@ -557,7 +558,7 @@ def migrate_sessions_from_state() -> int:
     records are not overwritten (first-write-wins).
     """
     st = load_state()
-    discovered: dict[str, dict] = {}
+    discovered: dict[str, JsonDict] = {}
     for item in st:
         sid = item.get("session_id")
         if not sid:

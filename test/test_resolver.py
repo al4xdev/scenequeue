@@ -54,9 +54,9 @@ def test_resolve_file(mock_mkdir: MagicMock, mock_open: MagicMock) -> None:
 
 @patch("src.core.load_db")
 def test_get_db_lookup_generates_unique_names(mock_load_db: MagicMock) -> None:
-    from src.core import get_db_lookup
+    from src.core import clear_db_lookup_cache, get_db_lookup
 
-    get_db_lookup.cache_clear()
+    clear_db_lookup_cache()
     mock_load_db.return_value = {
         "segments": [
             {"index": 0, "text": "NONE"},

@@ -12,7 +12,7 @@ import httpx
 from PIL import Image
 
 from . import core as cfg
-from .core import logger
+from .core import JsonDict, logger
 from .enums import GenerationConfig
 
 
@@ -53,7 +53,7 @@ class ComfyClient:
                     prompt_id = resp.json().get("prompt_id", "")
                     if not prompt_id:
                         raise ComfyQueueError("ComfyUI accepted the request without a prompt ID.")
-                    return prompt_id
+                    return str(prompt_id)
             except ComfyQueueError:
                 raise
             except httpx.HTTPError as e:
@@ -74,7 +74,7 @@ class ComfyClient:
 def generate_thumbnail(img_path: Path, thumb_path: Path) -> None:
     thumb_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        img = Image.open(img_path)
+        img: Image.Image = Image.open(img_path)
         img.thumbnail((400, 400))
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
@@ -138,9 +138,12 @@ class PromptResolver:
 # =====================================================================
 # 4. Workflow JSON Builders
 # =====================================================================
-def _load_template(path: Path) -> dict:
+def _load_template(path: Path) -> JsonDict:
     with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        value = json.load(f)
+    if not isinstance(value, dict):
+        raise ValueError(f"Workflow {path} must contain a JSON object")
+    return value
 
 
 def _write_prompt_file(prompt_text: str) -> str:
@@ -151,7 +154,7 @@ def _write_prompt_file(prompt_text: str) -> str:
     return "scenequeue/prompt.txt"
 
 
-def _update_common_nodes(wf: dict, output_subdir: str) -> None:
+def _update_common_nodes(wf: JsonDict, output_subdir: str) -> None:
     for node_id, node_info in wf.items():
         c_type = node_info.get("class_type", "")
         if c_type in ("EmptySD3LatentImage", "EmptyLatentImage"):
@@ -164,7 +167,7 @@ def _update_common_nodes(wf: dict, output_subdir: str) -> None:
             node_info["inputs"]["filename_prefix"] = f"{output_subdir}/{prefix}"
 
 
-def _insert_configured_loras(wf: dict) -> None:
+def _insert_configured_loras(wf: JsonDict) -> None:
     configured = [
         lora for lora in cfg.LORAS or [] if lora.get("name") and lora.get("name") != "None"
     ]
@@ -215,7 +218,7 @@ def _insert_configured_loras(wf: dict) -> None:
                 inputs[input_name] = clip_source
 
 
-def build_batch(prompt_text: str, chunk_number: str, session_id: str) -> dict:
+def build_batch(prompt_text: str, chunk_number: str, session_id: str) -> JsonDict:
     logger.info(f"Building batch for session {session_id}, chunk {chunk_number}")
     wf = _load_template(cfg.WORKFLOW_PATH)
     _update_common_nodes(wf, f"{session_id}/{chunk_number}")
@@ -340,7 +343,9 @@ def build_batch(prompt_text: str, chunk_number: str, session_id: str) -> dict:
     return wf
 
 
-def build_upscale(session_id: str, chunk_number: str, image_index: int | None = None) -> dict:
+def build_upscale(
+    session_id: str, chunk_number: str, image_index: int | None = None
+) -> JsonDict:
     wf = _load_template(cfg.UPSCALE_WORKFLOW_PATH)
     source_dir = cfg.OUTPUT_DIR / session_id / chunk_number
     source_images = (

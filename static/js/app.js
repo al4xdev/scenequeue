@@ -1949,13 +1949,8 @@ function populateSelectOptions(selectId, options, currentValue) {
 function applyRecommendedGenerationPreset() {
   const preset = generationCatalog.recommended_preset;
   if (!preset) return;
-  if (!generationCatalog.checkpoints.includes(preset.checkpoint)) {
-    alert(`Recommended checkpoint is not installed: ${preset.checkpoint}`);
-    return;
-  }
   populateSelectOptions('cfgSamplerName', generationCatalog.samplers, preset.sampler_name);
   populateSelectOptions('cfgScheduler', generationCatalog.schedulers, preset.scheduler);
-  document.getElementById('cfgCheckpoint').value = preset.checkpoint;
   document.getElementById('cfgSteps').value = preset.steps;
   document.getElementById('cfgScale').value = preset.cfg_scale;
   document.getElementById('cfgDenoise').value = preset.denoise;
@@ -1964,13 +1959,7 @@ function applyRecommendedGenerationPreset() {
   document.getElementById('cfgHighresSteps').value = preset.highres_steps;
   document.getElementById('cfgHighresCfgScale').value = preset.highres_cfg_scale;
   document.getElementById('cfgHighresDenoise').value = preset.highres_denoise;
-  if (preset.lora && generationCatalog.loras.includes(preset.lora)) {
-    document.getElementById('cfgLora1Name').value = preset.lora;
-    document.getElementById('cfgLora1StrengthModel').value = 1;
-    document.getElementById('cfgLora1StrengthClip').value = 1;
-  }
-  const loraNote = generationCatalog.loras.includes(preset.lora) ? '' : ' (LoRA not installed)';
-  showToast(`Fast Illustration preset applied${loraNote}.`);
+  showToast(`${preset.name} sampling preset applied.`);
 }
 
 function openGenerationSettings() {

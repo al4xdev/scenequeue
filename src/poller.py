@@ -14,6 +14,8 @@ from .core import (
     CLIENT_ID,
     IMAGES_DIR,
     THUMBS_DIR,
+    JsonDict,
+    State,
     active_progress,
     load_state,
     logger,
@@ -45,7 +47,7 @@ async def _save_image_from_comfy(
             except Exception as e_copy:
                 logger.error(f"Failed to copy local image: {e_copy}")
 
-    # 2. Fallback de rede (download via HTTP)
+    # 2. Network fallback (download over HTTP).
     if img_url:
         try:
             res = await client.get(img_url)
@@ -109,7 +111,7 @@ async def handle_prompt_failure(pid: str) -> None:
             logger.info(f"Marked items for prompt {pid} as failed")
 
 
-async def handle_node_executed(pid: str, images_list: list[dict]) -> None:
+async def handle_node_executed(pid: str, images_list: list[JsonDict]) -> None:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             async with state_lock:
@@ -147,7 +149,7 @@ async def handle_node_executed(pid: str, images_list: list[dict]) -> None:
 
 
 async def check_filesystem_fallback_with_client(
-    pid: str, pending: list[dict], client: httpx.AsyncClient
+    pid: str, pending: State, client: httpx.AsyncClient
 ) -> bool:
     any_found = False
     comfy_files_to_clean = []
@@ -280,7 +282,7 @@ async def sync_pending_items() -> None:
                 logger.error(f"Failed to fetch queue in sync_pending_items: {e}")
                 active_ids = set()
 
-            pid_groups = {}
+            pid_groups: dict[str, State] = {}
             for item in pending:
                 pid = item["prompt_id"]
                 if pid not in pid_groups:
