@@ -16,6 +16,41 @@ The repository ships with general-purpose, safe-for-work examples and a workflow
 made only from standard ComfyUI nodes. Your prompts, generated images, selected
 models, and local workflow edits live under `.data/` and are never committed.
 
+## See it in action
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/mobile-workflow.gif" alt="Navigating SceneQueue and managing storyboard sessions from a mobile device" width="320">
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/ai-insert-sequence.gif" alt="Using AI Insert After to create and queue three continuation frames" width="320">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Mobile-first workflow</strong><br>
+      Browse sessions, inspect generated frames, adjust generation settings, and
+      manage prompt databases with touch-friendly controls.
+    </td>
+    <td align="center">
+      <strong>AI-generated continuations</strong><br>
+      Use <em>AI Insert After</em> to describe what happens next, generate multiple
+      prompt segments, and queue the new sequence immediately.
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/assets/ai-prompt-diff.webp" alt="SceneQueue AI prompt editor highlighting the text added by the assistant" width="520">
+</p>
+
+<p align="center">
+  <strong>Review before applying.</strong><br>
+  AI suggestions remain editable, and inserted text is highlighted before the
+  updated prompt is accepted and re-queued.
+</p>
+
 ## Features
 
 - Ordered prompt databases with insert, edit, history, and retry operations.
