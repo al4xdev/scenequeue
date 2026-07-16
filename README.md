@@ -8,9 +8,16 @@
   <em>Generated with the included <code>manga_demo</code> preset.</em>
 </p>
 
-SceneQueue is a local-first storyboard and batch generation interface
-for ComfyUI. It keeps prompts as ordered frames, queues them through a configurable
-API workflow, tracks progress, and reflects generated images in a session gallery.
+SceneQueue turns large ComfyUI prompt batches into editable visual storyboards.
+Instead of maintaining a long JSON file, generate the whole sequence once and
+continue working directly from its gallery: edit any frame's prompt, compare the
+revision, re-queue it, or insert new frames before or after it without rebuilding
+the batch by hand.
+
+Its optional AI assistant can use the surrounding prompts as narrative context
+to create up to five preceding, continuation, or transition frames. Every inserted
+prompt remains visible and editable, so the sequence grows under your control
+rather than becoming an opaque one-shot generation.
 
 [![CI](https://github.com/al4xdev/scenequeue/actions/workflows/test.yml/badge.svg)](https://github.com/al4xdev/scenequeue/actions/workflows/test.yml)
 [![Container](https://github.com/al4xdev/scenequeue/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/al4xdev/scenequeue/pkgs/container/scenequeue)
@@ -56,6 +63,11 @@ models, and local workflow edits live under `.data/` and are never committed.
 
 ## Features
 
+- Edit a generated batch directly from its visual gallery instead of maintaining
+  a large prompt JSON file.
+- Insert and generate frames before or after any existing image.
+- Prompt revision history with visual diffs, editable AI suggestions, and re-queue.
+- Context-aware AI generation of up to five preceding or continuation frames.
 - Ordered prompt databases with insert, edit, history, and retry operations.
 - Reusable placeholders for subject, appearance, wardrobe, pose, scene, and style.
 - Sequential batch generation with configurable resolution, checkpoint, and LoRAs.

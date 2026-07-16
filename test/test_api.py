@@ -42,6 +42,19 @@ class TestAPI(unittest.TestCase):
     def tearDown(self):
         self.db_name_patcher.stop()
 
+    def test_ai_insert_limits_sequence_to_five_frames(self):
+        response = self.client.post(
+            "/api/insert-segment-job",
+            json={
+                "item_id": "example",
+                "position": "after",
+                "use_ai": True,
+                "count": 6,
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
     @patch("routes.api.cfg.reload_config")
     @patch("routes.api.cfg.save_openrouter_settings")
     @patch("routes.api.cfg.save_config")

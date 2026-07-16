@@ -1,7 +1,7 @@
 [project]
 name = "scenequeue"
 version = "0.1.0"
-description = "Local storyboard and batch prompt orchestrator for ComfyUI"
+description = "Edit ComfyUI prompt batches as visual, versioned storyboards"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }

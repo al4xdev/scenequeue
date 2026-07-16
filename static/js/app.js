@@ -1682,8 +1682,8 @@ function handleInsertBeforeAI(event) {
   const countStr = prompt("How many new frames should AI insert?", "1");
   if (countStr === null) return;
   const count = parseInt(countStr, 10);
-  if (isNaN(count) || count < 1) {
-    alert("Enter a valid number of frames.");
+  if (isNaN(count) || count < 1 || count > 5) {
+    alert("Enter a number from 1 to 5.");
     return;
   }
 
@@ -1700,8 +1700,8 @@ function handleInsertAfterAI(event) {
   const countStr = prompt("How many new frames should AI insert?", "1");
   if (countStr === null) return;
   const count = parseInt(countStr, 10);
-  if (isNaN(count) || count < 1) {
-    alert("Enter a valid number of frames.");
+  if (isNaN(count) || count < 1 || count > 5) {
+    alert("Enter a number from 1 to 5.");
     return;
   }
 

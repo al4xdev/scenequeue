@@ -1035,16 +1035,13 @@ class InsertJobRequest(BaseModel):
     position: str  # "before" or "after"
     use_ai: bool = False
     instruction: str | None = None
-    count: int = 1
+    count: int = Field(default=1, ge=1, le=5)
 
 
 @router.post("/api/insert-segment-job")
 async def insert_segment_job(req: InsertJobRequest) -> JsonDict:
     if req.position not in ("before", "after"):
         raise HTTPException(status_code=400, detail="Invalid position")
-    if req.count < 1:
-        raise HTTPException(status_code=400, detail="Count must be at least 1")
-
     async with state_lock:
         st = load_state()
         item = next((i for i in st if i["id"] == req.item_id), None)
