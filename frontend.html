@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>SceneQueue</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon.svg">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/styles.css">
+<script src="/static/js/app.js?v=4" defer></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.warn('ServiceWorker registration failed: ', err);
+      });
+    });
+  }
+</script>
+</head>
+
+<appearance>
+
+<!-- ── GALLERY ─────────────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-2 py-2 sm:px-6 sm:py-4">
+  <header class="flex justify-between items-center mb-3 sm:mb-5 border-b border-gray-900 pb-2">
+    <div class="flex items-center gap-2.5">
+      <!-- Minimalist Logo -->
+      <svg class="h-6 w-6 text-blue-500 active:scale-95 transition-transform cursor-pointer" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" onclick="backToSessions()">
+        <defs>
+          <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3b82f6" />
+            <stop offset="100%" stop-color="#8b5cf6" />
+          </linearGradient>
+        </defs>
+        <path d="M12 2L2 7l10 5 10-5-10-5z" fill="url(#logo-gradient)" />
+        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="url(#logo-gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <div id="connectionStatus" class="status-checking">
+        <span class="status-dot"></span>
+        <span class="status-label">comfyui: checking</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- Settings Button -->
+      <button onclick="openSettingsModal()"
+        class="bg-gray-850 hover:bg-gray-800 border border-gray-850 active:scale-95 p-2 rounded-lg text-gray-300 hover:text-white transition shadow-md flex items-center justify-center"
+        title="Settings">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+
+      <!-- Prompts Editor Button -->
+      <button onclick="openPromptsModal()"
+        class="bg-gray-850 hover:bg-gray-800 border border-gray-850 active:scale-95 p-2 rounded-lg text-gray-300 hover:text-white transition shadow-md flex items-center justify-center"
+        title="Edit Prompt Templates">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </button>
+
+      <!-- Select Multiple Button -->
+      <button id="btnToggleSelection" onclick="toggleSelectionMode()"
+        class="bg-gray-850 hover:bg-gray-800 border border-gray-850 active:scale-95 p-2 rounded-lg text-gray-300 hover:text-white transition shadow-md flex items-center justify-center"
+        title="Select Multiple">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+      </button>
+
+      <!-- New Batch Button (+) -->
+      <button id="btnNewBatch" onclick="openBatchModal()"
+        class="bg-blue-600 hover:bg-blue-500 active:scale-95 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition shadow-md flex items-center gap-1.5">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        </svg>
+        New Batch
+      </button>
+    </div>
+  </header>
+  <div id="gallery" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6"></div>
+</div>
+
+<!-- Floating Action Bar for Multiple Selection -->
+<div id="selectionActionBar" style="display:none;" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900/90 border border-gray-800 rounded-full py-3 px-6 shadow-2xl z-50 flex items-center gap-6 backdrop-blur-md transition-all duration-300 transform translate-y-20">
+  <span id="txtSelectionCount" class="text-xs sm:text-sm text-gray-300 font-semibold">0 selected</span>
+  <div class="flex items-center gap-2">
+    <button onclick="upscaleSelected()" class="bg-violet-700 hover:bg-violet-600 active:scale-95 text-white font-semibold text-xs sm:text-sm py-1.5 px-4 rounded-full transition shadow-md">
+      Upscale
+    </button>
+    <button onclick="deleteSelected()" class="bg-red-650 hover:bg-red-600 active:scale-95 text-white font-semibold text-xs sm:text-sm py-1.5 px-4 rounded-full transition shadow-md">
+      Delete
+    </button>
+    <button onclick="disableSelectionMode()" class="bg-gray-800 hover:bg-gray-700 active:scale-95 text-gray-300 font-semibold text-xs sm:text-sm py-1.5 px-4 rounded-full transition border border-gray-700">
+      Cancel
+    </button>
+  </div>
+</div>
+
+<!-- ── MODAL 1: FULLSCREEN IMAGE VIEWER ──────────────────────────────────── -->
+<div id="imageModal">
+  <div id="modalTopBar">
+    <button id="btnCloseModal"
+      style="background:#1f2937;color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-size:18px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;">
+      ✕
+    </button>
+    <span id="modalCounter" style="color:#6b7280;font-size:12px;font-family:monospace;"></span>
+    <button id="btnOpenEdit"
+      style="background:#2563eb;color:#fff;border:none;border-radius:50%;width:42px;height:42px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;"
+      title="Edit prompt">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="modalImageContainer">
+    <button onclick="slidePrev()"
+      style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;"
+      id="btnPrev">◀</button>
+    <button onclick="slideNext()"
+      style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:18px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;"
+      id="btnNext">▶</button>
+    <img id="viewFullImage" src="" alt="Selected image">
+  </div>
+
+  <div id="detailsDrawer">
+    <button id="btnToggleDrawer">
+      <span id="btnToggleDrawerText">Show Details</span>
+      <span id="btnToggleDrawerIcon">▲</span>
+    </button>
+
+    <div style="display: flex; gap: 10px; width: 100%;">
+      <button id="btnUpscaleCurrent" onclick="upscaleCurrent()"
+        style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #7c3aed, #8b5cf6); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);"
+        onmouseover="this.style.opacity='0.9'"
+        onmouseout="this.style.opacity='1'">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width: 2.5px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+        </svg>
+        <span>Upscale 4x</span>
+      </button>
+      <button id="btnRequeueCurrent" onclick="openEditModal()"
+        style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(31, 41, 55, 0.9); border: 1px solid rgba(75, 85, 99, 0.4); color: #e5e7eb; border-radius: 8px; padding: 10px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;"
+        onmouseover="this.style.background='rgba(55, 65, 81, 0.9)'"
+        onmouseout="this.style.background='rgba(31, 41, 55, 0.9)'">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width: 2.5px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+        </svg>
+        <span>Edit &amp; Re-queue</span>
+      </button>
+    </div>
+
+    <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
+      <div>
+        <p style="font-size:10px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Prompt</p>
+        <p id="viewPrompt" style="font-size:12px;color:rgba(255,255,255,0.95);user-select:text;word-break:break-word;"></p>
+      </div>
+      <div>
+        <p style="font-size:10px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Template</p>
+        <p id="viewTemplate" style="font-size:11px;color:rgba(255,255,255,0.5);user-select:text;"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL 2: NEW BATCH CONFIG ────────────────────────────────────────── -->
+<div id="batchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;align-items:center;justify-content:center;padding:8px;backdrop-filter:blur(4px);">
+  <div style="background:#111827;border:1px solid #1f2937;border-radius:16px;width:100%;max-width:500px;display:flex;flex-direction:column;overflow:hidden;max-height:95dvh;position:relative;">
+    <button onclick="closeBatchModal()"
+      style="position:absolute;top:12px;right:12px;background:#1f2937;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-weight:bold;font-size:15px;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;">
+      ✕
+    </button>
+
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;" class="no-scrollbar">
+      <div>
+        <h2 style="font-size:18px;font-weight:700;color:#fff;">New Batch</h2>
+        <p style="font-size:11px;color:#6b7280;margin-top:2px;">Configure generation options and queue all templates.</p>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Database</label>
+          <select id="cfgDatabase" onchange="onBatchDbChange()" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+      </div>
+
+      <div id="batchLoading" style="display:flex;align-items:center;justify-content:center;padding:20px;gap:10px;color:#6b7280;">
+        <div class="spinner"></div> Loading options...
+      </div>
+
+      <div id="batchForm" style="display:none;flex-direction:column;gap:12px;">
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Style</label>
+          <select id="cfgStyle" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Subject</label>
+          <select id="cfgSubject" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Appearance</label>
+          <select id="cfgAppearance" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Wardrobe</label>
+          <select id="cfgWardrobe" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Pose</label>
+          <select id="cfgPose" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Scene</label>
+          <select id="cfgScene" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;"></select>
+        </div>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px;" id="batchTemplateCount"></div>
+
+        <button id="btnSubmitBatch" onclick="submitBatch()"
+          style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s;">
+          Generate Batch
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL 3: EDIT PROMPT ──────────────────────────────────────────────── -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;align-items:center;justify-content:center;padding:8px;backdrop-filter:blur(4px);">
+  <div style="background:#111827;border:1px solid #1f2937;border-radius:16px;width:100%;max-width:700px;display:flex;flex-direction:column;overflow:hidden;max-height:95dvh;position:relative;">
+    <button onclick="closeEditModal()"
+      style="position:absolute;top:12px;right:12px;background:#1f2937;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-weight:bold;font-size:15px;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;">
+      ✕
+    </button>
+
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;" class="no-scrollbar">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; position:relative; min-height:48px;">
+        <div style="flex:1;">
+          <h2 style="font-size:18px;font-weight:700;color:#fff;">Edit Prompt <span id="editSegmentInfo" style="font-size:12px;color:#6b7280;font-weight:400;"></span></h2>
+          <p style="font-size:11px;color:#6b7280;margin-top:2px;">Edit just this segment and re-queue in single mode (batch toggle off).</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-right:32px; position:relative;">
+          <!-- Placeholders button -->
+          <button id="btnToggleEditConfig" onclick="toggleEditConfigPanel(event)"
+            style="background:#1f2937; border:1px solid #374151; color:#9ca3af; border-radius:8px; padding:6px 12px; font-size:11px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.15s ease;"
+            onmouseover="this.style.background='#374151'; this.style.color='#fff';"
+            onmouseout="this.style.background='#1f2937'; this.style.color='#9ca3af';">
+            ⚙️ Placeholders
+          </button>
+
+          <!-- Actions dropdown -->
+          <div style="position:relative;">
+            <button id="btnEditActionsToggle" onclick="toggleEditActionsMenu(event)"
+              style="background:#1f2937; border:1px solid #374151; color:#fff; border-radius:8px; padding:6px 12px; font-size:11px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.15s ease;"
+              onmouseover="this.style.background='#374151'"
+              onmouseout="this.style.background='#1f2937'">
+              Actions ▾
+            </button>
+            <div id="editActionsMenu" style="display:none; position:absolute; right:0; top:32px; background:#111827; border:1px solid #374151; border-radius:8px; box-shadow:0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -2px rgba(0,0,0,0.5); z-index:10010; min-width:145px; overflow:hidden;">
+              <button id="btnInsertBeforeEdit" onclick="handleInsertBeforeFromMenu(event)"
+                style="width:100%; text-align:left; background:transparent; border:none; color:#93c5fd; padding:8px 12px; font-size:11px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(59,130,246,0.1)'"
+                onmouseout="this.style.background='transparent'">
+                + Insert Before
+              </button>
+              <button id="btnInsertAfterEdit" onclick="handleInsertAfterFromMenu(event)"
+                style="width:100%; text-align:left; background:transparent; border:none; color:#93c5fd; padding:8px 12px; font-size:11px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(59,130,246,0.1)'"
+                onmouseout="this.style.background='transparent'">
+                + Insert After
+              </button>
+              <div style="border-top:1px solid #374151;"></div>
+              <button id="btnInsertBeforeAI" onclick="handleInsertBeforeAI(event)"
+                style="width:100%; text-align:left; background:transparent; border:none; color:#34d399; padding:8px 12px; font-size:11px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(16,185,129,0.1)'"
+                onmouseout="this.style.background='transparent'">
+                ✨ AI Insert Before
+              </button>
+              <button id="btnInsertAfterAI" onclick="handleInsertAfterAI(event)"
+                style="width:100%; text-align:left; background:transparent; border:none; color:#34d399; padding:8px 12px; font-size:11px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(16,185,129,0.1)'"
+                onmouseout="this.style.background='transparent'">
+                ✨ AI Insert After
+              </button>
+              <div style="border-top:1px solid #374151;"></div>
+              <button onclick="handleDeleteSegmentFromMenu(event)"
+                style="width:100%; text-align:left; background:transparent; border:none; color:#f87171; padding:8px 12px; font-size:11px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(239,68,68,0.1)'"
+                onmouseout="this.style.background='transparent'">
+                ✕ Delete Segment
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collapsible Placeholders Config Panel -->
+      <div id="editConfigPanel" style="display:none; background:#1f2937; border:1px solid #374151; border-radius:12px; padding:12px; margin-bottom:8px;">
+        <h3 style="font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">Placeholder Values (This Image)</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
+          <div>
+            <label style="display:block;font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Style</label>
+            <select id="editCfgStyle" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:5px 8px;color:#fff;font-size:11px;outline:none;"></select>
+          </div>
+          <div>
+            <label style="display:block;font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Subject</label>
+            <select id="editCfgSubject" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:5px 8px;color:#fff;font-size:11px;outline:none;"></select>
+          </div>
+          <div>
+            <label style="display:block;font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Appearance</label>
+            <select id="editCfgAppearance" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:5px 8px;color:#fff;font-size:11px;outline:none;"></select>
+          </div>
+          <div>
+            <label style="display:block;font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Wardrobe</label>
+            <select id="editCfgWardrobe" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:5px 8px;color:#fff;font-size:11px;outline:none;"></select>
+          </div>
+          <div>
+            <label style="display:block;font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Pose</label>
+            <select id="editCfgPose" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:5px 8px;color:#fff;font-size:11px;outline:none;"></select>
+          </div>
+          <div>
+            <label style="display:block;font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">Scene</label>
+            <select id="editCfgScene" style="width:100%;background:#111827;border:1px solid #374151;border-radius:6px;padding:5px 8px;color:#fff;font-size:11px;outline:none;"></select>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">Prompt</label>
+            <div style="display:inline-flex; align-items:center; background:#1f2937; border:1px solid #374151; border-radius:6px; padding:2px;">
+              <button onclick="adjustTagWeightAtCursor(-0.1)" title="Diminuir peso (Cursor)"
+                style="background:transparent; border:none; color:#9ca3af; cursor:pointer; width:20px; height:18px; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; border-radius:4px;"
+                onmouseover="this.style.background='#374151'; this.style.color='#fff';"
+                onmouseout="this.style.background='transparent'; this.style.color='#9ca3af';">
+                -
+              </button>
+              <button onclick="adjustTagWeightAtCursor(0.1)" title="Aumentar peso (Cursor)"
+                style="background:transparent; border:none; color:#9ca3af; cursor:pointer; width:20px; height:18px; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; border-radius:4px;"
+                onmouseover="this.style.background='#374151'; this.style.color='#fff';"
+                onmouseout="this.style.background='transparent'; this.style.color='#9ca3af';">
+                +
+              </button>
+            </div>
+          </div>
+          <div id="editPromptHistoryContainer"></div>
+        </div>
+        <textarea id="editPromptText" rows="6"
+          style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;resize:vertical;outline:none;font-family:monospace;line-height:1.5;"></textarea>
+        <!-- Autocomplete Suggestions Row -->
+        <div id="autocompleteSuggestions" style="display:none; flex-direction:row; flex-wrap:nowrap; gap:6px; overflow-x:auto; padding:4px 0; margin-top:4px;" class="no-scrollbar"></div>
+      </div>
+
+      <!-- AI Prompt Assistant Section -->
+      <div style="border-top:1px solid #1f2937;padding-top:12px;margin-top:4px;">
+        <h3 style="font-size:12px;font-weight:600;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <svg style="color:#3b82f6;" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          AI Prompt Assistant (OpenRouter)
+        </h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="aiInstructionInput" placeholder="What to change? (e.g. 'crying, (blushing:1.1)')"
+            style="flex:1;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;outline:none;">
+          <button id="btnAskAI" onclick="askAIPrompt()"
+            style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:background 0.15s;white-space:nowrap;">
+            Ask AI
+          </button>
+        </div>
+
+        <!-- Diff / Comparison Section -->
+        <div id="aiDiffSection" style="display:none;margin-top:12px;flex-direction:column;gap:8px;">
+          <div style="display:grid;grid-template-cols:1fr 1fr;gap:10px;">
+            <div>
+              <p style="font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Original Prompt</p>
+              <div id="aiOriginalPromptPreview" style="background:#1a1f29;border:1px solid #1f2937;border-radius:8px;padding:8px;font-size:11px;color:#9ca3af;font-family:monospace;white-space:pre-wrap;height:120px;overflow-y:auto;" class="no-scrollbar"></div>
+            </div>
+            <div>
+              <p style="font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">AI Suggestion (Editable)</p>
+              <div id="aiNewPromptPreview" contenteditable="true" style="width:100%;background:#1a1f29;border:1px solid #3b82f6;border-radius:8px;padding:8px;font-size:11px;color:#fff;font-family:monospace;height:120px;resize:none;outline:none;line-height:1.4;overflow-y:auto;white-space:pre-wrap;" class="no-scrollbar"></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+            <button onclick="rejectAISuggestion()" style="background:#1f2937;border:1px solid #374151;color:#d1d5db;font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;">
+              Discard
+            </button>
+            <button onclick="acceptAISuggestion()" style="background:#10b981;color:#fff;border:none;font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;">
+              Use Suggestion
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button id="btnSubmitEdit" onclick="submitEdit()"
+        style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s;">
+        Re-queue Prompt
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL 4: SETTINGS ────────────────────────────────────────────────────── -->
+<div id="settingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;align-items:center;justify-content:center;padding:8px;backdrop-filter:blur(4px);">
+  <div style="background:#111827;border:1px solid #1f2937;border-radius:16px;width:100%;max-width:500px;display:flex;flex-direction:column;overflow:hidden;max-height:95dvh;position:relative;">
+    <button onclick="closeSettingsModal()"
+      style="position:absolute;top:12px;right:12px;background:#1f2937;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-weight:bold;font-size:15px;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;">
+      ✕
+    </button>
+
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;" class="no-scrollbar">
+      <div>
+        <h2 style="font-size:18px;font-weight:700;color:#fff;">Settings</h2>
+        <p style="font-size:11px;color:#6b7280;margin-top:2px;">Server and ComfyUI connection settings.</p>
+      </div>
+
+      <div id="settingsLoading" style="display:flex;align-items:center;justify-content:center;padding:20px;gap:10px;color:#6b7280;">
+        <div class="spinner"></div> Loading settings...
+      </div>
+
+      <div id="settingsForm" style="display:none;flex-direction:column;gap:12px;">
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">ComfyUI URL</label>
+          <input type="text" id="cfgComfyUrl" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Target Node ID</label>
+          <input type="text" id="cfgTargetNodeId" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Target Input Key</label>
+          <input type="text" id="cfgTargetInputKey" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+        </div>
+        <div style="display:grid;grid-template-cols: 1fr 1fr;gap:10px;">
+          <div>
+            <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Width</label>
+            <input type="number" id="cfgWidth" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Height</label>
+            <input type="number" id="cfgHeight" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+          </div>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">ComfyUI Root Path</label>
+          <input type="text" id="cfgComfyRoot" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+        </div>
+
+        <button id="btnOpenGenerationSettings" onclick="openGenerationSettings()"
+          style="width:100%;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s;margin-top:4px;">
+          Generation Settings →
+        </button>
+
+        <button id="btnSaveSettings" onclick="saveSettings()"
+          style="width:100%;background:#10b981;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s;">
+          Save Settings
+        </button>
+      </div>
+
+      <!-- GENERATION SETTINGS FORM -->
+      <div id="generationSettingsForm" style="display:none;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <button onclick="backToMainSettings()" style="background:#1f2937;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+            ← Back to Server Settings
+          </button>
+          <span style="font-size:11px;color:#3b82f6;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Generation</span>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Checkpoint Model</label>
+          <select id="cfgCheckpoint" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+            <option value="">Loading checkpoints...</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Resolution Preset</label>
+          <select id="cfgResolutionPreset" onchange="handleResolutionPresetChange()" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+            <option value="custom">Custom</option>
+            <option value="768x1024">768 x 1024 (Portrait - Default)</option>
+            <option value="1024x1024">1024 x 1024 (Square - SDXL Base)</option>
+            <option value="832x1216">832 x 1216 (Portrait 3:4 - SDXL)</option>
+            <option value="1216x832">1216 x 832 (Landscape 4:3 - SDXL)</option>
+            <option value="1024x768">1024 x 768 (Landscape)</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Prompts per Batch</label>
+          <input type="number" id="cfgChunkSize" min="1" max="64" step="1" value="1" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;outline:none;">
+          <p style="font-size:10px;color:#6b7280;margin-top:4px;">Number of storyboard prompts queued in each ComfyUI batch.</p>
+        </div>
+
+        <div style="border-top:1px solid #1f2937;padding-top:10px;margin-top:4px;display:flex;flex-direction:column;gap:10px;">
+          <h3 style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;">LoRAs</h3>
+          
+          <!-- LoRA 1 -->
+          <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:8px;border:1px solid #1f2937;">
+            <label style="display:block;font-size:10px;font-weight:700;color:#9ca3af;margin-bottom:4px;">LoRA 1</label>
+            <select id="cfgLora1Name" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#fff;font-size:12px;outline:none;margin-bottom:6px;">
+              <option value="">None (Disabled)</option>
+            </select>
+            <div style="display:grid;grid-template-cols:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">Model Strength</label>
+                <input type="number" id="cfgLora1StrengthModel" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">CLIP Strength</label>
+                <input type="number" id="cfgLora1StrengthClip" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+            </div>
+          </div>
+          
+          <!-- LoRA 2 -->
+          <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:8px;border:1px solid #1f2937;">
+            <label style="display:block;font-size:10px;font-weight:700;color:#9ca3af;margin-bottom:4px;">LoRA 2</label>
+            <select id="cfgLora2Name" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#fff;font-size:12px;outline:none;margin-bottom:6px;">
+              <option value="">None (Disabled)</option>
+            </select>
+            <div style="display:grid;grid-template-cols:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">Model Strength</label>
+                <input type="number" id="cfgLora2StrengthModel" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">CLIP Strength</label>
+                <input type="number" id="cfgLora2StrengthClip" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+            </div>
+          </div>
+
+          <!-- LoRA 3 -->
+          <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:8px;border:1px solid #1f2937;">
+            <label style="display:block;font-size:10px;font-weight:700;color:#9ca3af;margin-bottom:4px;">LoRA 3</label>
+            <select id="cfgLora3Name" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#fff;font-size:12px;outline:none;margin-bottom:6px;">
+              <option value="">None (Disabled)</option>
+            </select>
+            <div style="display:grid;grid-template-cols:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">Model Strength</label>
+                <input type="number" id="cfgLora3StrengthModel" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">CLIP Strength</label>
+                <input type="number" id="cfgLora3StrengthClip" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+            </div>
+          </div>
+
+          <!-- LoRA 4 -->
+          <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:8px;border:1px solid #1f2937;">
+            <label style="display:block;font-size:10px;font-weight:700;color:#9ca3af;margin-bottom:4px;">LoRA 4</label>
+            <select id="cfgLora4Name" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#fff;font-size:12px;outline:none;margin-bottom:6px;">
+              <option value="">None (Disabled)</option>
+            </select>
+            <div style="display:grid;grid-template-cols:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">Model Strength</label>
+                <input type="number" id="cfgLora4StrengthModel" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+              <div>
+                <label style="font-size:9px;color:#6b7280;display:block;margin-bottom:2px;">CLIP Strength</label>
+                <input type="number" id="cfgLora4StrengthClip" step="0.1" value="1.0" style="width:100%;background:#1f2937;border:1px solid #374151;border-radius:6px;padding:4px 6px;color:#fff;font-size:11px;outline:none;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button id="btnSaveSettingsGen" onclick="saveSettings()"
+          style="width:100%;background:#10b981;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s;margin-top:6px;">
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL 5: PROMPT EDITOR ──────────────────────────────────────────────── -->
+<div id="promptsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;align-items:center;justify-content:center;padding:8px;backdrop-filter:blur(4px);">
+  <div style="background:#111827;border:1px solid #1f2937;border-radius:16px;width:100%;max-width:900px;display:flex;flex-direction:column;overflow:hidden;max-height:95dvh;position:relative;">
+    <button onclick="closePromptsModal()"
+      style="position:absolute;top:12px;right:12px;background:#1f2937;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-weight:bold;font-size:15px;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;">
+      ✕
+    </button>
+
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;height:100%;" class="no-scrollbar">
+      <div>
+        <h2 style="font-size:18px;font-weight:700;color:#fff;">Prompt Templates</h2>
+        <p style="font-size:11px;color:#6b7280;margin-top:2px;">Edit templates one by one. Placeholders like <code style="background:#1f2937;padding:1px 4px;border-radius:3px;">{subject}</code> are resolved at generation time.</p>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <label style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;">Type</label>
+          <select id="dbTypeSelect" onchange="switchDbType()" style="background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#fff;font-size:12px;outline:none;">
+            <option value="prompts">Prompts</option>
+            <option value="styles">Styles</option>
+            <option value="subjects">Subjects</option>
+            <option value="appearances">Appearances</option>
+            <option value="wardrobes">Wardrobes</option>
+            <option value="poses">Poses</option>
+            <option value="scenes">Scenes</option>
+          </select>
+          <label style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.1em;margin-left:8px;">Database</label>
+          <select id="promptsDbSelect" onchange="switchPromptsDb()" style="background:#1f2937;border:1px solid #374151;border-radius:6px;padding:6px 8px;color:#fff;font-size:12px;outline:none;"></select>
+          <button onclick="createNewDb()" style="background:#10b981;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;" title="New database">+ New</button>
+          <button onclick="deleteCurrentDb()" style="background:rgba(239,68,68,0.3);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;" title="Delete current database">🗑</button>
+        </div>
+
+      </div>
+
+      <div id="promptsLoading" style="display:flex;align-items:center;justify-content:center;padding:20px;gap:10px;color:#6b7280;">
+        <div class="spinner"></div> Loading prompts...
+      </div>
+
+      <div id="promptsEditor" style="display:none;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto;" class="no-scrollbar">
+        <div id="segmentsList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</appearance>
+</html>
