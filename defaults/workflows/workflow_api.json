@@ -1,0 +1,51 @@
+{
+  "1": {
+    "inputs": {"ckpt_name": ""},
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {"title": "Checkpoint"}
+  },
+  "2": {
+    "inputs": {"text": "", "clip": ["1", 1]},
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Positive prompt"}
+  },
+  "3": {
+    "inputs": {
+      "text": "low quality, blurry, distorted, watermark, text",
+      "clip": ["1", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Negative prompt"}
+  },
+  "4": {
+    "inputs": {"width": 768, "height": 1024, "batch_size": 1},
+    "class_type": "EmptyLatentImage",
+    "_meta": {"title": "Latent image"}
+  },
+  "5": {
+    "inputs": {
+      "seed": 0,
+      "steps": 24,
+      "cfg": 7,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": ["1", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["4", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "Sampler"}
+  },
+  "6": {
+    "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+    "class_type": "VAEDecode",
+    "_meta": {"title": "Decode"}
+  },
+  "7": {
+    "inputs": {"filename_prefix": "scenequeue", "images": ["6", 0]},
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save image"}
+  }
+}

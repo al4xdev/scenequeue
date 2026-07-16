@@ -1,0 +1,22 @@
+{
+  "1": {
+    "inputs": {"image": "scenequeue/source.png", "upload": "image"},
+    "class_type": "LoadImage",
+    "_meta": {"title": "Source image"}
+  },
+  "2": {
+    "inputs": {"model_name": "RealESRGAN_x4plus.pth"},
+    "class_type": "UpscaleModelLoader",
+    "_meta": {"title": "Upscale model"}
+  },
+  "3": {
+    "inputs": {"upscale_model": ["2", 0], "image": ["1", 0]},
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {"title": "Upscale"}
+  },
+  "4": {
+    "inputs": {"filename_prefix": "scenequeue-upscaled", "images": ["3", 0]},
+    "class_type": "SaveImage",
+    "_meta": {"title": "Save image"}
+  }
+}

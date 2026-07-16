@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "title": "Manga styles",
+  "segments": [
+    {
+      "index": 0,
+      "text": "black and white manga, expressive ink lines, screentone shading, clean panel composition",
+      "history": []
+    },
+    {
+      "index": 1,
+      "text": "cinematic seinen manga, detailed backgrounds, bold shadows, restrained expressions, monochrome ink",
+      "history": []
+    },
+    {
+      "index": 2,
+      "text": "light adventure manga, energetic linework, readable silhouettes, soft screentones, monochrome",
+      "history": []
+    }
+  ]
+}

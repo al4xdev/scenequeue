@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "segments": [
+    {"index": 0, "text": "adult person", "history": []},
+    {"index": 1, "text": "friendly service robot", "history": []},
+    {"index": 2, "text": "red fox", "history": []}
+  ]
+}

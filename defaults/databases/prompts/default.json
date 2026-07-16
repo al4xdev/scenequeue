@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "segments": [
+    {
+      "index": 0,
+      "text": "{style}, {subject}, {appearance}, {wardrobe}, {pose}, {scene}, balanced composition",
+      "history": []
+    },
+    {
+      "index": 1,
+      "text": "{style}, {subject}, {appearance}, {wardrobe}, walking through {scene}, wide establishing shot",
+      "history": []
+    },
+    {
+      "index": 2,
+      "text": "{style}, close portrait of {subject}, {appearance}, {wardrobe}, {scene}, expressive natural light",
+      "history": []
+    }
+  ]
+}

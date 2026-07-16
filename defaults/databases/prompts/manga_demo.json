@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "title": "Manga demo — The Last Delivery",
+  "description": "Eight sequential storyboard frames demonstrating visual continuity and pacing.",
+  "segments": [
+    {
+      "index": 0,
+      "text": "{style}, manga opening panel, {subject}, {appearance}, wearing {wardrobe}, arriving at {scene}, carrying a small sealed package, wide establishing shot, quiet atmosphere, strong environmental storytelling",
+      "history": []
+    },
+    {
+      "index": 1,
+      "text": "{style}, sequential manga panel, the same {subject} and identical {wardrobe}, pausing after hearing a metallic sound behind them in {scene}, {pose}, medium shot from behind, the sealed package still visible, subtle tension",
+      "history": []
+    },
+    {
+      "index": 2,
+      "text": "{style}, sequential manga close-up, the same {subject}, same {appearance} and {wardrobe}, turning toward the sound with a surprised expression, reflected light crossing the eyes, package held close, dramatic panel composition",
+      "history": []
+    },
+    {
+      "index": 3,
+      "text": "{style}, sequential manga reveal panel, a small damaged service robot emerging from the shadows of {scene}, the same {subject} in the foreground, same wardrobe and package, low camera angle, speed lines and suspended dust",
+      "history": []
+    },
+    {
+      "index": 4,
+      "text": "{style}, sequential manga two-shot, the same {subject} kneeling beside the damaged robot in {scene}, opening the sealed package to reveal a glowing replacement power cell, gentle expressions, intimate medium shot",
+      "history": []
+    },
+    {
+      "index": 5,
+      "text": "{style}, sequential manga action panel, the same subject installing the glowing power cell while the robot activates, burst of light illuminating the unchanged scene and wardrobe, dynamic diagonal composition, crisp motion lines",
+      "history": []
+    },
+    {
+      "index": 6,
+      "text": "{style}, sequential manga resolution panel, the repaired robot standing beside the same {subject}, both looking toward the distant path through {scene}, package now empty, calm hopeful mood, wide cinematic composition",
+      "history": []
+    },
+    {
+      "index": 7,
+      "text": "{style}, manga closing panel, the same {subject} and repaired robot walking away together through {scene}, identical appearance and wardrobe, long shadows, rear view, generous negative space reserved for an ending caption",
+      "history": []
+    }
+  ]
+}
