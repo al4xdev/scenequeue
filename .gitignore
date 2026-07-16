@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Runtime data
+.data/
+gallery_data/
+config.json
+databases/.active
+temp_prompts/
+
+# Logs
+*.log
+
+# Virtual environment
+.venv/
+
+# Plan folder
+.plan/
+plans/
+
+# Local environment variables
+.env
+
+# Tool caches and build output
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/

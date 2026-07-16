@@ -1,0 +1,11 @@
+{
+  "comfy_url": "http://127.0.0.1:8188",
+  "target_node_id": "2",
+  "target_input_key": "text",
+  "width": 768,
+  "height": 1024,
+  "comfy_root": "",
+  "checkpoint": "",
+  "loras": [],
+  "chunk_size": 1
+}
